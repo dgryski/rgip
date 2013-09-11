@@ -86,7 +86,6 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 	var m []*IPInfo
 
 	for _, ip := range ips {
-		// try parsing the IP first
 		if netip := net.ParseIP(ip); netip == nil {
 			// failed
 			m = append(m, nil)
@@ -97,7 +96,6 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		speed, _ /* netmask */ := gspeed.GetName(ip)
 		org := gisp.GetOrg(ip)
 
-		// strings, we always have these so use them in the constructor
 		ipinfo := IPInfo{IP: ip, Speed: speed, Organization: org}
 		// only flesh if we got results
 		if r != nil {
