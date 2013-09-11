@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -19,15 +20,32 @@ func main() {
 	http.HandleFunc("/lookup", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		qip := r.FormValue("ip")
-		m := geo.GetRecord(qip)
-		s, _ := json.Marshal(m)
+		ips := strings.Split(qip, ",")
+
+		var m []*geoip.GeoIPRecord
+
+		for _, ip := range ips {
+			r := geo.GetRecord(ip)
+			m = append(m, r)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(s)
+		encoder := json.NewEncoder(w)
+		switch len(m) {
+		case 0:
+			w.Write([]byte("{}"))
+		case 1:
+			encoder.Encode(m[0])
+		default:
+			encoder.Encode(m)
+
+		}
 	})
 
 	port := ":8080"
 	if p := os.Getenv("PORT"); p != "" {
 		port = ":" + p
 	}
+	log.Println("listening on port", port)
 	log.Fatal(http.ListenAndServe(port, nil))
 }
