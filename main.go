@@ -54,6 +54,7 @@ func NewRegionMapping(regioncsv string) *regionMapping {
 	if err != nil {
 		log.Fatalf("unable to open %s: %s", regioncsv, err)
 	}
+	defer f.Close()
 	csvr := csv.NewReader(f)
 
 	for {
