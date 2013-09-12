@@ -42,13 +42,17 @@ func opendat(dataDir string, dat string) *geoip.GeoIP {
 }
 
 type regionMapping struct {
-	mapping map[string]string
+	mapping map[int32]string
 	m       sync.Mutex
+}
+
+func s2int(s1, s2 string) int32 {
+	return int32(s1[0])<<24 | int32(s1[1])<<16 | int32(s2[0])<<8 | int32(s2[1])
 }
 
 func NewRegionMapping(regioncsv string) *regionMapping {
 
-	rmap := &regionMapping{mapping: make(map[string]string)}
+	rmap := &regionMapping{mapping: make(map[int32]string)}
 
 	f, err := os.Open(regioncsv)
 	if err != nil {
@@ -66,7 +70,7 @@ func NewRegionMapping(regioncsv string) *regionMapping {
 			log.Fatal("error during csv read:", err)
 		}
 
-		rmap.mapping[r[0]+r[1]] = r[2]
+		rmap.mapping[s2int(r[0], r[1])] = r[2]
 	}
 
 	return rmap
@@ -75,7 +79,7 @@ func NewRegionMapping(regioncsv string) *regionMapping {
 func (rc *regionMapping) lookupRegion(cc, rcode string) string {
 	rc.m.Lock()
 	defer rc.m.Unlock()
-	return rc.mapping[cc+rcode]
+	return rc.mapping[s2int(cc, rcode)]
 }
 
 func lookupHandler(w http.ResponseWriter, r *http.Request) {
