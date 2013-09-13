@@ -17,15 +17,15 @@ import (
 )
 
 type IPInfo struct {
-	IP           string
-	CountryCode  string
-	CountryName  string
-	City         string
-	Region       string
-	Latitude     float32
-	Longitude    float32
-	Organization string
-	Speed        string
+	IP           string  `json:"ip"`
+	CountryCode  string  `json:"country_code"`
+	CountryName  string  `json:"country_name"`
+	City         string  `json:"city"`
+	Region       string  `json:"region"`
+	Latitude     float32 `json:"latitude"`
+	Longitude    float32 `json:"longitude"`
+	Organization string  `json:"organization"`
+	Speed        string  `json:"speed"`
 }
 
 var gcity, gspeed, gisp *geoip.GeoIP
