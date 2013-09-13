@@ -97,8 +97,13 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		r := gcity.GetRecord(ip)
-		speed, _ /* netmask */ := gspeed.GetName(ip)
-		org := gisp.GetOrg(ip)
+		var speed, org string
+		if gspeed != nil {
+			speed, _ /* netmask */ = gspeed.GetName(ip)
+		}
+		if gisp != nil {
+			org = gisp.GetOrg(ip)
+		}
 
 		ipinfo := IPInfo{IP: ip, Speed: speed, Organization: org}
 		// only flesh if we got results
@@ -129,12 +134,18 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	dataDir := flag.String("datadir", "", "Directory containing GeoIP data files")
+	lite := flag.Bool("lite", false, "Load only GeoLiteCity.dat")
 
 	flag.Parse()
 
-	gcity = opendat(*dataDir, "GeoIPCity.dat")
-	gspeed = opendat(*dataDir, "GeoIPNetSpeed.dat")
-	gisp = opendat(*dataDir, "GeoIPISP.dat")
+	if *lite {
+		gcity = opendat(*dataDir, "GeoLiteCity.dat")
+	} else {
+		gcity = opendat(*dataDir, "GeoIPCity.dat")
+		gspeed = opendat(*dataDir, "GeoIPNetSpeed.dat")
+		gisp = opendat(*dataDir, "GeoIPISP.dat")
+
+	}
 	rmap = NewRegionMapping(path.Join(*dataDir, "region.csv"))
 
 	http.HandleFunc("/lookup", lookupHandler)
