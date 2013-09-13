@@ -79,6 +79,9 @@ func NewRegionMapping(regioncsv string) *regionMapping {
 func (rc *regionMapping) lookupRegion(cc, rcode string) string {
 	rc.m.Lock()
 	defer rc.m.Unlock()
+	if len(cc) != 2 || len(rcode) != 2 {
+		return ""
+	}
 	return rc.mapping[s2int(cc, rcode)]
 }
 
