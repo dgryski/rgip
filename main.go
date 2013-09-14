@@ -16,16 +16,26 @@ import (
 	"sync"
 )
 
+type City struct {
+	City          string  `json:"city"`
+	ContinentCode string  `json:"continent_code"`
+	CountryCode   string  `json:"country_code"`
+	CountryCode3  string  `json:"country_code3"`
+	CountryName   string  `json:"country_name"`
+	Latitude      float32 `json:"latitude"`
+	Longitude     float32 `json:"longitude"`
+	Region        string  `json:"region"`
+
+	AreaCode   int    `json:"area_code"`
+	CharSet    int    `json:"char_set"`
+	PostalCode string `json:"postal_code"`
+}
+
 type IPInfo struct {
-	IP           string  `json:"ip"`
-	CountryCode  string  `json:"country_code"`
-	CountryName  string  `json:"country_name"`
-	City         string  `json:"city"`
-	Region       string  `json:"region"`
-	Latitude     float32 `json:"latitude"`
-	Longitude    float32 `json:"longitude"`
-	Organization string  `json:"organization"`
-	Speed        string  `json:"speed"`
+	IP           string `json:"ip"`
+	City         `json:"city"`
+	Organization string `json:"organization"`
+	Speed        string `json:"speed"`
 }
 
 var gcity, gspeed, gisp *geoip.GeoIP
@@ -111,12 +121,19 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		ipinfo := IPInfo{IP: ip, Speed: speed, Organization: org}
 		// only flesh if we got results
 		if r != nil {
+			ipinfo.City.City = r.City
+			ipinfo.ContinentCode = r.ContinentCode
 			ipinfo.CountryCode = r.CountryCode
+			ipinfo.CountryCode3 = r.CountryCode3
 			ipinfo.CountryName = r.CountryName
-			ipinfo.Region = rmap.lookupRegion(r.CountryCode, r.Region)
-			ipinfo.City = r.City
 			ipinfo.Latitude = r.Latitude
 			ipinfo.Longitude = r.Longitude
+			ipinfo.Region = rmap.lookupRegion(r.CountryCode, r.Region)
+
+			ipinfo.AreaCode = r.AreaCode
+			ipinfo.CharSet = r.CharSet
+			ipinfo.PostalCode = r.PostalCode
+
 		}
 		m = append(m, &ipinfo)
 	}
