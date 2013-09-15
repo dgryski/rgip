@@ -2,18 +2,15 @@
 package main
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"github.com/abh/geoip"
-	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"path"
 	"strings"
-	"sync"
 )
 
 type City struct {
@@ -39,7 +36,6 @@ type IPInfo struct {
 }
 
 var gcity, gspeed, gisp *geoip.GeoIP
-var rmap *regionMapping
 
 func opendat(dataDir string, dat string) *geoip.GeoIP {
 	fname := path.Join(dataDir, dat)
@@ -49,50 +45,6 @@ func opendat(dataDir string, dat string) *geoip.GeoIP {
 	}
 
 	return g
-}
-
-type regionMapping struct {
-	mapping map[int32]string
-	m       sync.Mutex
-}
-
-func s2int(s1, s2 string) int32 {
-	return int32(s1[0])<<24 | int32(s1[1])<<16 | int32(s2[0])<<8 | int32(s2[1])
-}
-
-func NewRegionMapping(regioncsv string) *regionMapping {
-
-	rmap := &regionMapping{mapping: make(map[int32]string)}
-
-	f, err := os.Open(regioncsv)
-	if err != nil {
-		log.Fatalf("unable to open %s: %s", regioncsv, err)
-	}
-	defer f.Close()
-	csvr := csv.NewReader(f)
-
-	for {
-		r, err := csvr.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatal("error during csv read:", err)
-		}
-
-		rmap.mapping[s2int(r[0], r[1])] = r[2]
-	}
-
-	return rmap
-}
-
-func (rc *regionMapping) lookupRegion(cc, rcode string) string {
-	rc.m.Lock()
-	defer rc.m.Unlock()
-	if len(cc) != 2 || len(rcode) != 2 {
-		return ""
-	}
-	return rc.mapping[s2int(cc, rcode)]
 }
 
 func lookupHandler(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +80,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 			ipinfo.CountryName = r.CountryName
 			ipinfo.Latitude = r.Latitude
 			ipinfo.Longitude = r.Longitude
-			ipinfo.Region = rmap.lookupRegion(r.CountryCode, r.Region)
+			ipinfo.Region = geoip.GetRegionName(r.CountryCode, r.Region)
 
 			ipinfo.AreaCode = r.AreaCode
 			ipinfo.CharSet = r.CharSet
@@ -166,7 +118,6 @@ func main() {
 		gisp = opendat(*dataDir, "GeoIPISP.dat")
 
 	}
-	rmap = NewRegionMapping(path.Join(*dataDir, "region.csv"))
 
 	http.HandleFunc("/lookup", lookupHandler)
 
