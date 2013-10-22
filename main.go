@@ -26,6 +26,7 @@ type City struct {
 	Latitude      float32 `json:"latitude"`
 	Longitude     float32 `json:"longitude"`
 	Region        string  `json:"region"`
+	RegionName    string  `json:"region_name"`
 
 	AreaCode   int    `json:"area_code"`
 	CharSet    int    `json:"char_set"`
@@ -33,11 +34,11 @@ type City struct {
 }
 
 type IPInfo struct {
-	IP           string `json:"ip"`
-	City         `json:"city"`
-	Organization string `json:"organization"`
-	Speed        string `json:"speed"`
-	UFI          int    `json:"ufi"`
+	IP       string `json:"ip"`
+	City     `json:"city"`
+	ISP      string `json:"isp"`
+	NetSpeed string `json:"netspeed"`
+	UFI      int    `json:"ufi"`
 }
 
 var gcity, gspeed, gisp *geoip.GeoIP
@@ -109,77 +110,73 @@ func openufi(fname string) ufiRanges {
 }
 
 func lookupHandler(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	qip := r.FormValue("ip")
-	ips := strings.Split(qip, ",")
 
-	var m []*IPInfo
+	// split path for IP
+	args := strings.Split(r.URL.Path, "/")
+	// strip entry for "/lookup/"
+	args = args[2:]
 
-	for _, ip := range ips {
-		var netip net.IP
-		if netip = net.ParseIP(ip); netip == nil {
-			// failed
-			m = append(m, nil)
-			continue
-		}
+	if len(args) != 1 {
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
 
-		r := gcity.GetRecord(ip)
-		var speed, org string
-		if gspeed != nil {
-			speed, _ /* netmask */ = gspeed.GetName(ip)
-		}
-		if gisp != nil {
-			org = gisp.GetOrg(ip)
-		}
+	ip := args[0]
 
-		var ufi int
-		if ufis != nil {
-			if ip4 := netip.To4(); ip4 != nil {
-				ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
+	var netip net.IP
+	if netip = net.ParseIP(ip); netip == nil {
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
 
-				// see if we can map this ip into a range with a UFI
-				// returns smallest index i such that f() is true
-				idx := sort.Search(ufis.Len(), func(i int) bool { return ip32 <= ufis[i].rangeTo })
+	record := gcity.GetRecord(ip)
+	var speed, org string
+	if gspeed != nil {
+		speed, _ /* netmask */ = gspeed.GetName(ip)
+	}
+	if gisp != nil {
+		org = gisp.GetOrg(ip)
+	}
 
-				if idx != -1 && ufis[idx].rangeFrom <= ip32 && ip32 <= ufis[idx].rangeTo {
-					// log.Printf("Found %04x at offset %d: from=%04x to=%04x\n", ip32, idx, ufis[idx].rangeFrom, ufis[idx].rangeTo)
-					ufi = ufis[idx].ufi
-				}
+	var ufi int
+	if ufis != nil {
+		if ip4 := netip.To4(); ip4 != nil {
+			ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
 
+			// see if we can map this ip into a range with a UFI
+			// returns smallest index i such that f() is true
+			idx := sort.Search(ufis.Len(), func(i int) bool { return ip32 <= ufis[i].rangeTo })
+
+			if idx != -1 && ufis[idx].rangeFrom <= ip32 && ip32 <= ufis[idx].rangeTo {
+				// log.Printf("Found %04x at offset %d: from=%04x to=%04x\n", ip32, idx, ufis[idx].rangeFrom, ufis[idx].rangeTo)
+				ufi = ufis[idx].ufi
 			}
-		}
-
-		ipinfo := IPInfo{IP: ip, Speed: speed, Organization: org, UFI: ufi}
-		// only flesh if we got results
-		if r != nil {
-			ipinfo.City.City = r.City
-			ipinfo.ContinentCode = r.ContinentCode
-			ipinfo.CountryCode = r.CountryCode
-			ipinfo.CountryCode3 = r.CountryCode3
-			ipinfo.CountryName = r.CountryName
-			ipinfo.Latitude = r.Latitude
-			ipinfo.Longitude = r.Longitude
-			ipinfo.Region = geoip.GetRegionName(r.CountryCode, r.Region)
-
-			ipinfo.AreaCode = r.AreaCode
-			ipinfo.CharSet = r.CharSet
-			ipinfo.PostalCode = r.PostalCode
 
 		}
-		m = append(m, &ipinfo)
+	}
+
+	ipinfo := IPInfo{IP: ip, NetSpeed: speed, ISP: org, UFI: ufi}
+	// only flesh if we got results
+	if r != nil {
+		ipinfo.City.City = record.City
+		ipinfo.ContinentCode = record.ContinentCode
+		ipinfo.CountryCode = record.CountryCode
+		ipinfo.CountryCode3 = record.CountryCode3
+		ipinfo.CountryName = record.CountryName
+		ipinfo.Latitude = record.Latitude
+		ipinfo.Longitude = record.Longitude
+		ipinfo.Region = record.Region
+		ipinfo.RegionName = geoip.GetRegionName(record.CountryCode, record.Region)
+
+		ipinfo.AreaCode = record.AreaCode
+		ipinfo.CharSet = record.CharSet
+		ipinfo.PostalCode = record.PostalCode
+
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	encoder := json.NewEncoder(w)
-	switch len(m) {
-	case 0:
-		w.Write([]byte("{}"))
-	case 1:
-		encoder.Encode(m[0])
-	default:
-		encoder.Encode(m)
-
-	}
+	encoder.Encode(ipinfo)
 }
 
 func main() {
@@ -202,7 +199,7 @@ func main() {
 		ufis = openufi(*ufi)
 	}
 
-	http.HandleFunc("/lookup", lookupHandler)
+	http.HandleFunc("/lookup/", lookupHandler)
 
 	port := ":8080"
 	if p := os.Getenv("PORT"); p != "" {
