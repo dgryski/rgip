@@ -2,10 +2,11 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"flag"
-	"github.com/abh/geoip"
 	"io"
 	"log"
 	"net"
@@ -15,6 +16,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/abh/geoip"
 )
 
 type City struct {
@@ -39,6 +42,7 @@ type IPInfo struct {
 	ISP      string `json:"isp"`
 	NetSpeed string `json:"netspeed"`
 	UFI      int    `json:"ufi"`
+	NextHop  string `json:"next_hop_ip"`
 }
 
 var gcity, gspeed, gisp *geoip.GeoIP
@@ -53,38 +57,53 @@ func opendat(dataDir string, dat string) *geoip.GeoIP {
 	return g
 }
 
-type ufiRange struct {
+type ipRange struct {
 	rangeFrom, rangeTo uint32
-	ufi                int
+	data               int
 }
 
-type ufiRanges []ufiRange
+type ipRanges []ipRange
 
-func (ur *ufiRanges) Len() int           { return len(*ur) }
-func (ur *ufiRanges) Less(i, j int) bool { return (*ur)[i].rangeTo < (*ur)[j].rangeTo }
-func (ur *ufiRanges) Swap(i, j int)      { (*ur)[i], (*ur)[j] = (*ur)[j], (*ur)[i] }
+func (ipr *ipRanges) Len() int           { return len(*ipr) }
+func (ipr *ipRanges) Less(i, j int) bool { return (*ipr)[i].rangeTo < (*ipr)[j].rangeTo }
+func (ipr *ipRanges) Swap(i, j int)      { (*ipr)[i], (*ipr)[j] = (*ipr)[j], (*ipr)[i] }
 
-var ufis ufiRanges
+var ufis ipRanges
 
-func openufi(fname string) ufiRanges {
+var nexthops ipRanges
+
+func openIPRanges(fname string, linesToSkip int, sep rune, transform func(string) (int, error)) ipRanges {
+
+	var f io.ReadCloser
 
 	f, err := os.Open(fname)
+	defer f.Close()
 
 	if err != nil {
 		log.Fatalf("unable to open %s: %s", fname, err)
 	}
 
-	tsv := csv.NewReader(f)
-	tsv.Comma = '\t'
+	if strings.HasSuffix(fname, ".gz") {
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			log.Fatalln("error during gzip decompress of: ", fname, ":", err)
+		}
+		defer gz.Close()
+		f = gz
+	}
+
+	svr := csv.NewReader(f)
+	svr.Comma = sep
 
 	// read and discard header
-	tsv.Read()
+	for i := 0; i < linesToSkip; i++ {
+		svr.Read()
+	}
 
-	var ufir ufiRanges
+	var ipr ipRanges
 
 	for {
-
-		r, err := tsv.Read()
+		r, err := svr.Read()
 		if err == io.EOF {
 			break
 		}
@@ -95,18 +114,30 @@ func openufi(fname string) ufiRanges {
 
 		ipFrom, _ := strconv.Atoi(r[0]) // ignoring errors here
 		ipTo, _ := strconv.Atoi(r[1])
-		ufi, _ := strconv.Atoi(r[2])
+		data, _ := transform(r[2])
 
-		ufir = append(ufir, ufiRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), ufi: ufi})
+		ipr = append(ipr, ipRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), data: data})
 	}
 
-	if !sort.IsSorted(&ufir) {
-		sort.Sort(&ufir)
+	if !sort.IsSorted(&ipr) {
+		sort.Sort(&ipr)
 	}
 
 	// log.Println("Loaded", len(ufir), "networks")
 
-	return ufir
+	return ipr
+}
+
+func lookupRange(ip32 uint32, ipr ipRanges) int {
+
+	idx := sort.Search(ipr.Len(), func(i int) bool { return ip32 <= ipr[i].rangeTo })
+
+	if idx != -1 && ipr[idx].rangeFrom <= ip32 && ip32 <= ipr[idx].rangeTo {
+		// log.Printf("Found %04x at offset %d: from=%04x to=%04x\n", ip32, idx, ufis[idx].rangeFrom, ufis[idx].rangeTo)
+		return ipr[idx].data
+	}
+
+	return 0
 }
 
 func lookupHandler(w http.ResponseWriter, r *http.Request) {
@@ -139,23 +170,27 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var ufi int
-	if ufis != nil {
-		if ip4 := netip.To4(); ip4 != nil {
-			ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
+	var nexthop uint32
 
-			// see if we can map this ip into a range with a UFI
-			// returns smallest index i such that f() is true
-			idx := sort.Search(ufis.Len(), func(i int) bool { return ip32 <= ufis[i].rangeTo })
+	if ip4 := netip.To4(); ip4 != nil && (ufis != nil || nexthops != nil) {
+		ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
 
-			if idx != -1 && ufis[idx].rangeFrom <= ip32 && ip32 <= ufis[idx].rangeTo {
-				// log.Printf("Found %04x at offset %d: from=%04x to=%04x\n", ip32, idx, ufis[idx].rangeFrom, ufis[idx].rangeTo)
-				ufi = ufis[idx].ufi
-			}
+		if ufis != nil {
+			ufi = lookupRange(ip32, ufis)
+		}
 
+		if nexthops != nil {
+			nexthop = uint32(lookupRange(ip32, nexthops))
 		}
 	}
 
-	ipinfo := IPInfo{IP: ip, NetSpeed: speed, ISP: org, UFI: ufi}
+	ipinfo := IPInfo{
+		IP:       ip,
+		NetSpeed: speed,
+		ISP:      org,
+		UFI:      ufi,
+		NextHop:  net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String(),
+	}
 	// only flesh if we got results
 	if r != nil {
 		ipinfo.City.City = record.City
@@ -171,7 +206,6 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		ipinfo.AreaCode = record.AreaCode
 		ipinfo.CharSet = record.CharSet
 		ipinfo.PostalCode = record.PostalCode
-
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -183,6 +217,7 @@ func main() {
 
 	dataDir := flag.String("datadir", "", "Directory containing GeoIP data files")
 	ufi := flag.String("ufi", "", "File containing iprange-to-UFI mappings")
+	nexthop := flag.String("nexthop", "", "File containing next-hop mappings")
 	lite := flag.Bool("lite", false, "Load only GeoLiteCity.dat")
 
 	flag.Parse()
@@ -196,7 +231,20 @@ func main() {
 	}
 
 	if *ufi != "" {
-		ufis = openufi(*ufi)
+		ufis = openIPRanges(*ufi, 1, '\t', strconv.Atoi)
+	}
+
+	if *nexthop != "" {
+		nexthops = openIPRanges(*nexthop, 0, ',', func(s string) (int, error) {
+			netip := net.ParseIP(s)
+			if netip == nil {
+				return 0, errors.New("bad ip address")
+			}
+
+			ip4 := netip.To4()
+			ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
+			return int(ip32), nil
+		})
 	}
 
 	http.HandleFunc("/lookup/", lookupHandler)
