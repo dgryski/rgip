@@ -21,19 +21,16 @@ import (
 )
 
 type City struct {
-	City          string  `json:"city"`
-	ContinentCode string  `json:"continent_code"`
-	CountryCode   string  `json:"country_code"`
-	CountryCode3  string  `json:"country_code3"`
-	CountryName   string  `json:"country_name"`
-	Latitude      float32 `json:"latitude"`
-	Longitude     float32 `json:"longitude"`
-	Region        string  `json:"region"`
-	RegionName    string  `json:"region_name"`
+	City        string  `json:"city"`
+	CountryCode string  `json:"country_code"`
+	DMACode     int     `json:"dma_code"` // not supported by Go bindings
+	Latitude    float32 `json:"latitude"`
+	Longitude   float32 `json:"longitude"`
+	MetroCode   int     `json:"metro_code""` // == DMACode, not supported by Go bindings
+	Region      string  `json:"region"`
+	RegionName  string  `json:"region_name"`
 
-	AreaCode   int    `json:"area_code"`
-	CharSet    int    `json:"char_set"`
-	PostalCode string `json:"postal_code"`
+	AreaCode int `json:"area_code"`
 }
 
 type IPInfo struct {
@@ -41,8 +38,10 @@ type IPInfo struct {
 	City     `json:"city"`
 	ISP      string `json:"isp"`
 	NetSpeed string `json:"netspeed"`
-	UFI      int    `json:"ufi"`
-	NextHop  string `json:"next_hop_ip"`
+	UFI      struct {
+		GuessedUFI int `json:"guessed_ufi"`
+	} `json:"ufi"`
+	NextHop string `json:"next_hop_ip"`
 }
 
 var gcity, gspeed, gisp *geoip.GeoIP
@@ -188,24 +187,19 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		IP:       ip,
 		NetSpeed: speed,
 		ISP:      org,
-		UFI:      ufi,
 		NextHop:  net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String(),
 	}
+	ipinfo.UFI.GuessedUFI = ufi
 	// only flesh if we got results
 	if r != nil {
 		ipinfo.City.City = record.City
-		ipinfo.ContinentCode = record.ContinentCode
 		ipinfo.CountryCode = record.CountryCode
-		ipinfo.CountryCode3 = record.CountryCode3
-		ipinfo.CountryName = record.CountryName
 		ipinfo.Latitude = record.Latitude
 		ipinfo.Longitude = record.Longitude
 		ipinfo.Region = record.Region
 		ipinfo.RegionName = geoip.GetRegionName(record.CountryCode, record.Region)
 
 		ipinfo.AreaCode = record.AreaCode
-		ipinfo.CharSet = record.CharSet
-		ipinfo.PostalCode = record.PostalCode
 	}
 
 	w.Header().Set("Content-Type", "application/json")
