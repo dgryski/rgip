@@ -6,11 +6,13 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"expvar"
 	"flag"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path"
 	"sort"
@@ -19,6 +21,14 @@ import (
 
 	"github.com/abh/geoip"
 )
+
+var Statistics = struct {
+	Requests *expvar.Int
+	Errors   *expvar.Int
+}{
+	Requests: expvar.NewInt("requests"),
+	Errors:   expvar.NewInt("errors"),
+}
 
 type City struct {
 	City        string  `json:"city"`
@@ -141,12 +151,15 @@ func lookupRange(ip32 uint32, ipr ipRanges) int {
 
 func lookupHandler(w http.ResponseWriter, r *http.Request) {
 
+	Statistics.Requests.Add(1)
+
 	// split path for IP
 	args := strings.Split(r.URL.Path, "/")
 	// strip entry for "/lookup/"
 	args = args[2:]
 
 	if len(args) != 1 {
+		Statistics.Errors.Add(1)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -155,6 +168,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 
 	var netip net.IP
 	if netip = net.ParseIP(ip); netip == nil {
+		Statistics.Errors.Add(1)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
