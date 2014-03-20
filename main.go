@@ -111,6 +111,8 @@ func openIPRanges(fname string, linesToSkip int, sep rune, transform func(string
 
 	var ipr ipRanges
 
+	prevIP := -1
+
 	for {
 		r, err := svr.Read()
 		if err == io.EOF {
@@ -121,18 +123,21 @@ func openIPRanges(fname string, linesToSkip int, sep rune, transform func(string
 			log.Fatal(err)
 		}
 
-		ipFrom, _ := strconv.Atoi(r[0]) // ignoring errors here
-		ipTo, _ := strconv.Atoi(r[1])
-		data, _ := transform(r[2])
+		var ipFrom, ipTo, data int
 
+		if len(r) < 3 {
+			ipFrom = prevIP + 1
+			ipTo, _ = strconv.Atoi(r[0])
+			data, _ = transform(r[1])
+		} else {
+			ipFrom, _ = strconv.Atoi(r[0]) // ignoring errors here
+			ipTo, _ = strconv.Atoi(r[1])
+			data, _ = transform(r[2])
+		}
+
+		prevIP = ipTo
 		ipr = append(ipr, ipRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), data: data})
 	}
-
-	if !sort.IsSorted(&ipr) {
-		sort.Sort(&ipr)
-	}
-
-	// log.Println("Loaded", len(ufir), "networks")
 
 	return ipr
 }
@@ -239,7 +244,7 @@ func main() {
 	}
 
 	if *ufi != "" {
-		ufis = openIPRanges(*ufi, 1, '\t', strconv.Atoi)
+		ufis = openIPRanges(*ufi, 0, ',', strconv.Atoi)
 	}
 
 	if *nexthop != "" {
