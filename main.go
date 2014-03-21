@@ -202,6 +202,10 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if speed == "" {
+		speed = "Unknown"
+	}
+
 	ipinfo := IPInfo{
 		IP:       ip,
 		NetSpeed: speed,
