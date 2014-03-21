@@ -214,7 +214,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ipinfo.UFI.GuessedUFI = ufi
 	// only flesh if we got results
-	if r != nil {
+	if record != nil {
 		ipinfo.City.City = record.City
 		ipinfo.CountryCode = record.CountryCode
 		ipinfo.Latitude = record.Latitude
