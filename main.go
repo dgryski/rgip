@@ -128,7 +128,6 @@ func lookupRange(ip32 uint32, ipr ipRanges) int {
 	idx := sort.Search(len(ipr), func(i int) bool { return ip32 <= ipr[i].rangeTo })
 
 	if idx != -1 && ipr[idx].rangeFrom <= ip32 && ip32 <= ipr[idx].rangeTo {
-		// log.Printf("Found %04x at offset %d: from=%04x to=%04x\n", ip32, idx, ufis[idx].rangeFrom, ufis[idx].rangeTo)
 		return ipr[idx].data
 	}
 
