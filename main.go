@@ -76,7 +76,7 @@ var ufis ipRanges
 
 var nexthops ipRanges
 
-func openIPRanges(fname string, linesToSkip int, sep rune, transform func(string) (int, error)) ipRanges {
+func openIPRanges(fname string, transform func(string) (int, error)) ipRanges {
 
 	var f io.ReadCloser
 
@@ -88,12 +88,6 @@ func openIPRanges(fname string, linesToSkip int, sep rune, transform func(string
 	}
 
 	svr := csv.NewReader(f)
-	svr.Comma = sep
-
-	// read and discard header
-	for i := 0; i < linesToSkip; i++ {
-		svr.Read()
-	}
 
 	var ipr ipRanges
 
@@ -234,11 +228,11 @@ func main() {
 	}
 
 	if *ufi != "" {
-		ufis = openIPRanges(*ufi, 0, ',', strconv.Atoi)
+		ufis = openIPRanges(*ufi, strconv.Atoi)
 	}
 
 	if *nexthop != "" {
-		nexthops = openIPRanges(*nexthop, 0, ',', func(s string) (int, error) {
+		nexthops = openIPRanges(*nexthop, func(s string) (int, error) {
 			netip := net.ParseIP(s)
 			if netip == nil {
 				return 0, errors.New("bad ip address")
