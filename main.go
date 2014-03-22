@@ -36,7 +36,7 @@ type City struct {
 	DMACode     int     `json:"dma_code"` // not supported by Go bindings
 	Latitude    float32 `json:"latitude"`
 	Longitude   float32 `json:"longitude"`
-	MetroCode   int     `json:"metro_code""` // == DMACode, not supported by Go bindings
+	MetroCode   int     `json:"metro_code"` // == DMACode, not supported by Go bindings
 	Region      string  `json:"region"`
 	RegionName  string  `json:"region_name"`
 
