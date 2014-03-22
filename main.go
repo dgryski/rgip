@@ -72,10 +72,6 @@ type ipRange struct {
 
 type ipRanges []ipRange
 
-func (ipr *ipRanges) Len() int           { return len(*ipr) }
-func (ipr *ipRanges) Less(i, j int) bool { return (*ipr)[i].rangeTo < (*ipr)[j].rangeTo }
-func (ipr *ipRanges) Swap(i, j int)      { (*ipr)[i], (*ipr)[j] = (*ipr)[j], (*ipr)[i] }
-
 var ufis ipRanges
 
 var nexthops ipRanges
@@ -134,7 +130,7 @@ func openIPRanges(fname string, linesToSkip int, sep rune, transform func(string
 
 func lookupRange(ip32 uint32, ipr ipRanges) int {
 
-	idx := sort.Search(ipr.Len(), func(i int) bool { return ip32 <= ipr[i].rangeTo })
+	idx := sort.Search(len(ipr), func(i int) bool { return ip32 <= ipr[i].rangeTo })
 
 	if idx != -1 && ipr[idx].rangeFrom <= ip32 && ip32 <= ipr[idx].rangeTo {
 		// log.Printf("Found %04x at offset %d: from=%04x to=%04x\n", ip32, idx, ufis[idx].rangeFrom, ufis[idx].rangeTo)
