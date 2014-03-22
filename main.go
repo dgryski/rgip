@@ -105,12 +105,13 @@ func openIPRanges(fname string, transform func(string) (int, error)) ipRanges {
 
 		var ipFrom, ipTo, data int
 
+		// ignoring errors here
 		if len(r) < 3 {
 			ipFrom = prevIP + 1
 			ipTo, _ = strconv.Atoi(r[0])
 			data, _ = transform(r[1])
 		} else {
-			ipFrom, _ = strconv.Atoi(r[0]) // ignoring errors here
+			ipFrom, _ = strconv.Atoi(r[0])
 			ipTo, _ = strconv.Atoi(r[1])
 			data, _ = transform(r[2])
 		}
