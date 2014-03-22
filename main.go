@@ -2,7 +2,6 @@
 package main
 
 import (
-	"compress/gzip"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -90,15 +89,6 @@ func openIPRanges(fname string, linesToSkip int, sep rune, transform func(string
 
 	if err != nil {
 		log.Fatalf("unable to open %s: %s", fname, err)
-	}
-
-	if strings.HasSuffix(fname, ".gz") {
-		gz, err := gzip.NewReader(f)
-		if err != nil {
-			log.Fatalln("error during gzip decompress of: ", fname, ":", err)
-		}
-		defer gz.Close()
-		f = gz
 	}
 
 	svr := csv.NewReader(f)
