@@ -158,43 +158,36 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record := gcity.GetRecord(ip)
-	var speed, org string
-	if gspeed != nil {
-		speed, _ /* netmask */ = gspeed.GetName(ip)
-	}
-	if gisp != nil {
-		org = gisp.GetOrg(ip)
+	ipinfo := IPInfo{
+		IP: ip,
 	}
 
-	var ufi int
-	var nexthop uint32
+	if gspeed != nil {
+		ipinfo.NetSpeed, _ /* netmask */ = gspeed.GetName(ip)
+		if ipinfo.NetSpeed == "" {
+			ipinfo.NetSpeed = "Unknown"
+		}
+	}
+
+	if gisp != nil {
+		ipinfo.ISP = gisp.GetOrg(ip)
+		// catch unknown org?
+	}
 
 	if ip4 := netip.To4(); ip4 != nil && (ufis != nil || nexthops != nil) {
 		ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
 
 		if ufis != nil {
-			ufi = lookupRange(ip32, ufis)
+			ipinfo.UFI.GuessedUFI = lookupRange(ip32, ufis)
 		}
 
 		if nexthops != nil {
-			nexthop = uint32(lookupRange(ip32, nexthops))
+			nexthop := uint32(lookupRange(ip32, nexthops))
+			ipinfo.NextHop = net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String()
 		}
 	}
 
-	if speed == "" {
-		speed = "Unknown"
-	}
-
-	ipinfo := IPInfo{
-		IP:       ip,
-		NetSpeed: speed,
-		ISP:      org,
-		NextHop:  net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String(),
-	}
-	ipinfo.UFI.GuessedUFI = ufi
-	// only flesh if we got results
-	if record != nil {
+	if record := gcity.GetRecord(ip); record != nil {
 		ipinfo.City.City = record.City
 		ipinfo.CountryCode = record.CountryCode
 		ipinfo.Latitude = record.Latitude
