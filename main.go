@@ -110,13 +110,13 @@ func openIPRanges(fname string, transform func(string) (int, error)) ipRanges {
 			ipFrom = prevIP + 1
 			ipTo, _ = strconv.Atoi(r[0])
 			data, _ = transform(r[1])
+			prevIP = ipTo
 		} else {
 			ipFrom, _ = strconv.Atoi(r[0])
 			ipTo, _ = strconv.Atoi(r[1])
 			data, _ = transform(r[2])
 		}
 
-		prevIP = ipTo
 		ipr = append(ipr, ipRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), data: data})
 	}
 
