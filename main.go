@@ -189,7 +189,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 
 	if record := gcity.GetRecord(ip); record != nil {
 		ipinfo.City.City = record.City
-		ipinfo.CountryCode = record.CountryCode
+		ipinfo.CountryCode = strings.ToLower(record.CountryCode)
 		ipinfo.Latitude = record.Latitude
 		ipinfo.Longitude = record.Longitude
 		ipinfo.Region = record.Region
