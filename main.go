@@ -4,19 +4,22 @@ package main
 import (
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"expvar"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/signal"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 
 	"github.com/abh/geoip"
 )
@@ -53,16 +56,48 @@ type IPInfo struct {
 	NextHop string `json:"next_hop_ip"`
 }
 
-var gcity, gspeed, gisp *geoip.GeoIP
+var gcity, gspeed, gisp *geodb
 
-func opendat(dataDir string, dat string) *geoip.GeoIP {
-	fname := path.Join(dataDir, dat)
-	g, err := geoip.Open(fname)
+type geodb struct {
+	db *geoip.GeoIP
+	sync.Mutex
+}
+
+func (g *geodb) load(dataDir, file string) error {
+	fname := path.Join(dataDir, file)
+	db, err := geoip.Open(fname)
 	if err != nil {
-		log.Fatalf("unable to open %s: %s", fname, err)
+		log.Printf("error loading %s/%s: %s", dataDir, file, err)
+		return err
 	}
 
-	return g
+	g.Lock()
+	g.db = db
+	g.Unlock()
+	return nil
+}
+
+func (g *geodb) GetNetSpeed(ip string) string {
+	g.Lock()
+	defer g.Unlock()
+	speed, _ /* netmask */ := g.db.GetName(ip)
+	if speed == "" {
+		return "Unknown"
+	}
+
+	return speed
+}
+
+func (g *geodb) GetOrg(ip string) string {
+	g.Lock()
+	defer g.Unlock()
+	return g.db.GetOrg(ip)
+}
+
+func (g *geodb) GetRecord(ip string) *geoip.GeoIPRecord {
+	g.Lock()
+	defer g.Unlock()
+	return g.db.GetRecord(ip)
 }
 
 type ipRange struct {
@@ -70,13 +105,27 @@ type ipRange struct {
 	data               int
 }
 
-type ipRanges []ipRange
+type ipRanges struct {
+	ranges []ipRange
+	sync.RWMutex
+}
 
-var ufis ipRanges
+var ufis, nexthops *ipRanges
 
-var nexthops ipRanges
+type converr struct {
+	err error
+}
 
-func openIPRanges(fname string, transform func(string) (int, error)) ipRanges {
+func (c *converr) check(s string, f func(string) (int, error)) int {
+	i, e := f(s)
+	if e != nil {
+		c.err = e
+		return 0
+	}
+	return i
+}
+
+func (ipr *ipRanges) load(fname string, transform func(string) (int, error)) error {
 
 	var f io.ReadCloser
 
@@ -84,12 +133,13 @@ func openIPRanges(fname string, transform func(string) (int, error)) ipRanges {
 	defer f.Close()
 
 	if err != nil {
-		log.Fatalf("unable to open %s: %s", fname, err)
+		log.Println("can't open ip ranges: ", err)
+		return err
 	}
 
 	svr := csv.NewReader(f)
 
-	var ipr ipRanges
+	var ips []ipRange
 
 	prevIP := -1
 
@@ -100,35 +150,47 @@ func openIPRanges(fname string, transform func(string) (int, error)) ipRanges {
 		}
 
 		if err != nil {
-			log.Fatal(err)
+			log.Println("error reading CSV: ", err)
+			return err
 		}
 
 		var ipFrom, ipTo, data int
 
-		// ignoring errors here
+		var convert converr
 		if len(r) < 3 {
 			ipFrom = prevIP + 1
-			ipTo, _ = strconv.Atoi(r[0])
-			data, _ = transform(r[1])
+			ipTo = convert.check(r[0], strconv.Atoi)
+			data = convert.check(r[1], transform)
 			prevIP = ipTo
 		} else {
-			ipFrom, _ = strconv.Atoi(r[0])
-			ipTo, _ = strconv.Atoi(r[1])
-			data, _ = transform(r[2])
+			ipFrom = convert.check(r[0], strconv.Atoi)
+			ipTo = convert.check(r[1], strconv.Atoi)
+			data = convert.check(r[2], transform)
 		}
 
-		ipr = append(ipr, ipRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), data: data})
+		if convert.err != nil {
+			log.Printf("error parsing %v: %s", r, err)
+			return convert.err
+		}
+
+		ips = append(ips, ipRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), data: data})
 	}
 
-	return ipr
+	ipr.Lock()
+	ipr.ranges = ips
+	ipr.Unlock()
+	return nil
 }
 
-func lookupRange(ip32 uint32, ipr ipRanges) int {
+func (ipr *ipRanges) lookupRange(ip32 uint32) int {
 
-	idx := sort.Search(len(ipr), func(i int) bool { return ip32 <= ipr[i].rangeTo })
+	ipr.RLock()
+	defer ipr.RUnlock()
 
-	if idx != -1 && ipr[idx].rangeFrom <= ip32 && ip32 <= ipr[idx].rangeTo {
-		return ipr[idx].data
+	idx := sort.Search(len(ipr.ranges), func(i int) bool { return ip32 <= ipr.ranges[i].rangeTo })
+
+	if idx != -1 && ipr.ranges[idx].rangeFrom <= ip32 && ip32 <= ipr.ranges[idx].rangeTo {
+		return ipr.ranges[idx].data
 	}
 
 	return 0
@@ -163,10 +225,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if gspeed != nil {
-		ipinfo.NetSpeed, _ /* netmask */ = gspeed.GetName(ip)
-		if ipinfo.NetSpeed == "" {
-			ipinfo.NetSpeed = "Unknown"
-		}
+		ipinfo.NetSpeed = gspeed.GetNetSpeed(ip)
 	}
 
 	if gisp != nil {
@@ -178,11 +237,11 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
 
 		if ufis != nil {
-			ipinfo.UFI.GuessedUFI = lookupRange(ip32, ufis)
+			ipinfo.UFI.GuessedUFI = ufis.lookupRange(ip32)
 		}
 
 		if nexthops != nil {
-			nexthop := uint32(lookupRange(ip32, nexthops))
+			nexthop := uint32(nexthops.lookupRange(ip32))
 			ipinfo.NextHop = net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String()
 		}
 	}
@@ -198,9 +257,70 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		ipinfo.AreaCode = record.AreaCode
 	}
 
+	// check RobotIP
+	// check EvilISP
+
 	w.Header().Set("Content-Type", "application/json")
 	encoder := json.NewEncoder(w)
 	encoder.Encode(ipinfo)
+}
+
+type errIPParse string
+
+func (ip errIPParse) Error() string {
+	return fmt.Sprintf("bad ip address: %s", ip)
+}
+
+func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
+
+	var err error
+
+	if lite {
+		e := gcity.load(datadir, "GeoLiteCity.dat")
+		if e != nil {
+			err = e
+		}
+	} else {
+		e := gcity.load(datadir, "GeoIPCity.dat")
+		if e != nil {
+			err = e
+		}
+		e = gspeed.load(datadir, "GeoIPNetSpeed.dat")
+		if e != nil {
+			err = e
+		}
+
+		e = gisp.load(datadir, "GeoIPISP.dat")
+		if e != nil {
+			err = e
+		}
+	}
+
+	if ufi != "" {
+		e := ufis.load(ufi, strconv.Atoi)
+		if e != nil {
+			log.Printf("unable to load %s: %s", ufi, err)
+			err = e
+		}
+	}
+
+	if nexthop != "" {
+		e := nexthops.load(nexthop, func(s string) (int, error) {
+			netip := net.ParseIP(s)
+			if netip == nil {
+				return 0, errIPParse(s)
+			}
+
+			ip4 := netip.To4()
+			ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
+			return int(ip32), nil
+		})
+		if e != nil {
+			log.Printf("unable to load %s: %s", nexthop, err)
+			err = e
+		}
+	}
+	return err
 }
 
 func main() {
@@ -212,30 +332,45 @@ func main() {
 
 	flag.Parse()
 
-	if *lite {
-		gcity = opendat(*dataDir, "GeoLiteCity.dat")
-	} else {
-		gcity = opendat(*dataDir, "GeoIPCity.dat")
-		gspeed = opendat(*dataDir, "GeoIPNetSpeed.dat")
-		gisp = opendat(*dataDir, "GeoIPISP.dat")
+	gcity = new(geodb)
+	if !*lite {
+		gspeed = new(geodb)
+		gisp = new(geodb)
 	}
 
 	if *ufi != "" {
-		ufis = openIPRanges(*ufi, strconv.Atoi)
+		ufis = new(ipRanges)
 	}
 
 	if *nexthop != "" {
-		nexthops = openIPRanges(*nexthop, func(s string) (int, error) {
-			netip := net.ParseIP(s)
-			if netip == nil {
-				return 0, errors.New("bad ip address")
-			}
-
-			ip4 := netip.To4()
-			ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
-			return int(ip32), nil
-		})
+		nexthops = new(ipRanges)
 	}
+
+	err := loadDataFiles(*lite, *dataDir, *ufi, *nexthop)
+	if err != nil {
+		log.Fatal("can't load data files: ", err)
+
+	}
+
+	// start the sighup reload config handler
+	go func() {
+		sigs := make(chan os.Signal)
+		signal.Notify(sigs, syscall.SIGHUP)
+
+		for {
+			<-sigs
+			log.Println("Attempting to reload data files")
+			// TODO(dgryski): run this in a goroutine and catch panics()?
+			err := loadDataFiles(*lite, *dataDir, *ufi, *nexthop)
+			if err != nil {
+				// don't log err here, we've already done it in loadDataFiles
+				log.Println("failed to load some data files")
+			} else {
+				log.Println("All data files reloaded successfully")
+			}
+		}
+
+	}()
 
 	http.HandleFunc("/lookup/", lookupHandler)
 
