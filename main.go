@@ -102,12 +102,41 @@ func (g *geodb) GetRecord(ip string) *geoip.GeoIPRecord {
 
 type ipRange struct {
 	rangeFrom, rangeTo uint32
-	data               int
+	data               interface{}
+}
+
+type ipRangeList []ipRange
+
+func (r ipRangeList) Len() int           { return len(r) }
+func (r ipRangeList) Less(i, j int) bool { return (r)[i].rangeTo < (r)[j].rangeTo }
+func (r ipRangeList) Swap(i, j int)      { (r)[i], (r)[j] = (r)[j], (r)[i] }
+
+func (r ipRangeList) lookup(ip32 uint32) interface{} {
+
+	idx := sort.Search(len(r), func(i int) bool { return ip32 <= r[i].rangeTo })
+
+	if idx != -1 && r[idx].rangeFrom <= ip32 && ip32 <= r[idx].rangeTo {
+		return r[idx].data
+	}
+
+	return nil
 }
 
 type ipRanges struct {
-	ranges []ipRange
+	ranges ipRangeList
 	sync.RWMutex
+}
+
+func (ipr *ipRanges) lookup(ip32 uint32) int {
+	ipr.Lock()
+	defer ipr.Unlock()
+	data := ipr.ranges.lookup(ip32)
+
+	if data == nil {
+		return 0
+	}
+
+	return data.(int)
 }
 
 var ufis, nexthops *ipRanges
@@ -125,7 +154,7 @@ func (c *converr) check(s string, f func(string) (int, error)) int {
 	return i
 }
 
-func (ipr *ipRanges) load(fname string, transform func(string) (int, error)) error {
+func loadIPRangesFromCSV(fname string, transform func(string) (int, error)) (ipRangeList, error) {
 
 	var f io.ReadCloser
 
@@ -134,12 +163,12 @@ func (ipr *ipRanges) load(fname string, transform func(string) (int, error)) err
 
 	if err != nil {
 		log.Println("can't open ip ranges: ", err)
-		return err
+		return nil, err
 	}
 
 	svr := csv.NewReader(f)
 
-	var ips []ipRange
+	var ips ipRangeList
 
 	prevIP := -1
 
@@ -151,7 +180,7 @@ func (ipr *ipRanges) load(fname string, transform func(string) (int, error)) err
 
 		if err != nil {
 			log.Println("error reading CSV: ", err)
-			return err
+			return nil, err
 		}
 
 		var ipFrom, ipTo, data int
@@ -170,30 +199,13 @@ func (ipr *ipRanges) load(fname string, transform func(string) (int, error)) err
 
 		if convert.err != nil {
 			log.Printf("error parsing %v: %s", r, err)
-			return convert.err
+			return nil, convert.err
 		}
 
 		ips = append(ips, ipRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), data: data})
 	}
 
-	ipr.Lock()
-	ipr.ranges = ips
-	ipr.Unlock()
-	return nil
-}
-
-func (ipr *ipRanges) lookupRange(ip32 uint32) int {
-
-	ipr.RLock()
-	defer ipr.RUnlock()
-
-	idx := sort.Search(len(ipr.ranges), func(i int) bool { return ip32 <= ipr.ranges[i].rangeTo })
-
-	if idx != -1 && ipr.ranges[idx].rangeFrom <= ip32 && ip32 <= ipr.ranges[idx].rangeTo {
-		return ipr.ranges[idx].data
-	}
-
-	return 0
+	return ips, nil
 }
 
 func lookupHandler(w http.ResponseWriter, r *http.Request) {
@@ -233,17 +245,19 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		// catch unknown org?
 	}
 
-	if ip4 := netip.To4(); ip4 != nil && (ufis != nil || nexthops != nil) {
-		ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
+	var ip32 uint32
 
-		if ufis != nil {
-			ipinfo.UFI.GuessedUFI = ufis.lookupRange(ip32)
-		}
+	if ip4 := netip.To4(); ip4 != nil {
+		ip32 = uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
+	}
 
-		if nexthops != nil {
-			nexthop := uint32(nexthops.lookupRange(ip32))
-			ipinfo.NextHop = net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String()
-		}
+	if ufis != nil {
+		ipinfo.UFI.GuessedUFI = ufis.lookup(ip32)
+	}
+
+	if nexthops != nil {
+		nexthop := uint32(nexthops.lookup(ip32))
+		ipinfo.NextHop = net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String()
 	}
 
 	if record := gcity.GetRecord(ip); record != nil {
@@ -297,15 +311,19 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 	}
 
 	if ufi != "" {
-		e := ufis.load(ufi, strconv.Atoi)
+		ranges, e := loadIPRangesFromCSV(ufi, strconv.Atoi)
 		if e != nil {
 			log.Printf("unable to load %s: %s", ufi, err)
 			err = e
+		} else {
+			ufis.Lock()
+			ufis.ranges = ranges
+			ufis.Unlock()
 		}
 	}
 
 	if nexthop != "" {
-		e := nexthops.load(nexthop, func(s string) (int, error) {
+		ranges, e := loadIPRangesFromCSV(nexthop, func(s string) (int, error) {
 			netip := net.ParseIP(s)
 			if netip == nil {
 				return 0, errIPParse(s)
@@ -318,6 +336,10 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 		if e != nil {
 			log.Printf("unable to load %s: %s", nexthop, err)
 			err = e
+		} else {
+			nexthops.Lock()
+			nexthops.ranges = ranges
+			nexthops.Unlock()
 		}
 	}
 	return err
