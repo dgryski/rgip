@@ -2,6 +2,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/csv"
 	"encoding/json"
 	"expvar"
@@ -20,8 +21,10 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/abh/geoip"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var Statistics = struct {
@@ -53,7 +56,8 @@ type IPInfo struct {
 	UFI      struct {
 		GuessedUFI int `json:"guessed_ufi"`
 	} `json:"ufi"`
-	NextHop string `json:"next_hop_ip"`
+	NextHop  string `json:"next_hop_ip"`
+	IPStatus string `json:"ip_status"`
 }
 
 var gcity, gspeed, gisp *geodb
@@ -260,6 +264,8 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		ipinfo.NextHop = net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String()
 	}
 
+	ipinfo.IPStatus = EvilIPs.lookup(ip32)
+
 	if record := gcity.GetRecord(ip); record != nil {
 		ipinfo.City.City = record.City
 		ipinfo.CountryCode = strings.ToLower(record.CountryCode)
@@ -271,7 +277,6 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		ipinfo.AreaCode = record.AreaCode
 	}
 
-	// check RobotIP
 	// check EvilISP
 
 	w.Header().Set("Content-Type", "application/json")
@@ -345,12 +350,102 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 	return err
 }
 
+type BadIPRecord struct {
+	status  string
+	expires time.Time
+}
+
+type EvilIPList struct {
+	ipRanges
+	lastChange time.Time
+}
+
+var EvilIPs EvilIPList
+
+func (evil *EvilIPList) lookup(ip32 uint32) string {
+
+	if evil.ipRanges.ranges == nil {
+		return ""
+	}
+
+	evil.Lock()
+	defer evil.Unlock()
+
+	data := evil.ranges.lookup(ip32)
+
+	if data == nil {
+		return ""
+	}
+
+	val := data.(BadIPRecord)
+
+	if time.Now().After(val.expires) {
+		return ""
+	}
+
+	return val.status
+
+}
+
+func loadEvilIP(db *sql.DB) (ipRangeList, error) {
+
+	// FIXME(dgryski); check if data *needs* reloading?
+	// FIXME(dgryski): current_date is sqlite-ism
+
+	rows, err := db.Query("select ip, subnet, status, expires from EvilIP where expires > current_date")
+	if err != nil {
+		log.Println("error querying: ", err)
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var ranges ipRangeList
+
+	for rows.Next() {
+		var ip uint32
+		var subnet uint
+		var status string
+		var expires string
+
+		err := rows.Scan(&ip, &subnet, &status, &expires)
+		if err != nil {
+			log.Println("error scanning: ", err)
+			return nil, err
+		}
+
+		mask := uint32(1<<(32-subnet)) - 1
+		ipmin := ip & ^mask
+		ipmax := ip | mask
+
+		expireTime, err := time.Parse("2006-01-02", expires)
+		badIP := BadIPRecord{
+			status:  status,
+			expires: expireTime,
+		}
+
+		ranges = append(ranges, ipRange{rangeFrom: ipmin, rangeTo: ipmax, data: badIP})
+	}
+	err = rows.Err()
+	if err != nil {
+		log.Println("error from rows:", err)
+		return nil, err
+	}
+
+	// TODO(dgryski): ensure the data has no overlapping ranges
+
+	sort.Sort(ranges)
+
+	return ranges, nil
+}
+
 func main() {
 
 	dataDir := flag.String("datadir", "", "Directory containing GeoIP data files")
 	ufi := flag.String("ufi", "", "File containing iprange-to-UFI mappings")
 	nexthop := flag.String("nexthop", "", "File containing next-hop mappings")
 	lite := flag.Bool("lite", false, "Load only GeoLiteCity.dat")
+	evilip := flag.String("evilip", "", "Watch EvilIP table for changes")
 
 	flag.Parse()
 
@@ -374,21 +469,62 @@ func main() {
 
 	}
 
-	// start the sighup reload config handler
+	var evilipdb *sql.DB
+
+	if *evilip != "" {
+		var err error
+		evilipdb, err = sql.Open("sqlite3", *evilip)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ranges, err := loadEvilIP(evilipdb)
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			EvilIPs.Lock()
+			EvilIPs.ranges = ranges
+			EvilIPs.Unlock()
+		}
+	}
+
+	// start the reload-on-change handler
 	go func() {
 		sigs := make(chan os.Signal)
 		signal.Notify(sigs, syscall.SIGHUP)
 
+		var minute <-chan time.Time
+
+		if *evilip != "" {
+			minute = time.Tick(time.Minute)
+		}
+
 		for {
-			<-sigs
-			log.Println("Attempting to reload data files")
-			// TODO(dgryski): run this in a goroutine and catch panics()?
-			err := loadDataFiles(*lite, *dataDir, *ufi, *nexthop)
-			if err != nil {
-				// don't log err here, we've already done it in loadDataFiles
-				log.Println("failed to load some data files")
-			} else {
-				log.Println("All data files reloaded successfully")
+			select {
+
+			case <-sigs:
+				log.Println("Attempting to reload data files")
+				// TODO(dgryski): run this in a goroutine and catch panics()?
+				err := loadDataFiles(*lite, *dataDir, *ufi, *nexthop)
+				if err != nil {
+					// don't log err here, we've already done it in loadDataFiles
+					log.Println("failed to load some data files")
+				} else {
+					log.Println("All data files reloaded successfully")
+				}
+
+			case <-minute:
+				log.Println("reloading EvilIP data")
+				ranges, err := loadEvilIP(evilipdb)
+				if err != nil {
+					// don't log err here, we've already done it in loadDataFiles
+					log.Println("failed to reload EvilIP data")
+				} else {
+					// assign ranges to evilips
+					log.Println("EvilIP data reloaded")
+					EvilIPs.Lock()
+					EvilIPs.ranges = ranges
+					EvilIPs.Unlock()
+				}
 			}
 		}
 
