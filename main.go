@@ -446,6 +446,7 @@ func main() {
 	nexthop := flag.String("nexthop", "", "File containing next-hop mappings")
 	lite := flag.Bool("lite", false, "Load only GeoLiteCity.dat")
 	evilip := flag.String("evilip", "", "Watch EvilIP table for changes")
+	port := flag.Int("p", 8080, "port")
 
 	flag.Parse()
 
@@ -532,10 +533,12 @@ func main() {
 
 	http.HandleFunc("/lookup/", lookupHandler)
 
-	port := ":8080"
 	if p := os.Getenv("PORT"); p != "" {
-		port = ":" + p
+		*port, err = strconv.Atoi(p)
+		if err != nil {
+			log.Fatal("unable to parse port number:", err)
+		}
 	}
-	log.Println("listening on port", port)
-	log.Fatal(http.ListenAndServe(port, nil))
+	log.Println("listening on port", *port)
+	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*port), nil))
 }
