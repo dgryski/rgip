@@ -92,10 +92,29 @@ func (g *geodb) GetNetSpeed(ip string) string {
 	return speed
 }
 
-func (g *geodb) GetOrg(ip string) string {
+func (g *geodb) GetNetSpeedV6(ip string) string {
 	g.Lock()
 	defer g.Unlock()
-	return g.db.GetOrg(ip)
+	speed, _ /* netmask */ := g.db.GetNameV6(ip)
+	if speed == "" {
+		return "Unknown"
+	}
+
+	return speed
+}
+
+func (g *geodb) GetName(ip string) string {
+	g.Lock()
+	defer g.Unlock()
+	name, _ := g.db.GetName(ip)
+	return name
+}
+
+func (g *geodb) GetNameV6(ip string) string {
+	g.Lock()
+	defer g.Unlock()
+	name, _ := g.db.GetNameV6(ip)
+	return name
 }
 
 func (g *geodb) GetRecord(ip string) *geoip.GeoIPRecord {
@@ -241,11 +260,19 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if gspeed != nil {
-		ipinfo.NetSpeed = gspeed.GetNetSpeed(ip)
+		if netip.To4() != nil {
+			ipinfo.NetSpeed = gspeed.GetNetSpeed(ip)
+		} else {
+			ipinfo.NetSpeed = gspeed.GetNetSpeedV6(ip)
+		}
 	}
 
 	if gisp != nil {
-		ipinfo.ISP = gisp.GetOrg(ip)
+		if netip.To4() != nil {
+			ipinfo.ISP = gisp.GetName(ip)
+		} else {
+			ipinfo.ISP = gisp.GetNameV6(ip)
+		}
 		// catch unknown org?
 	}
 
