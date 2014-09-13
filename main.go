@@ -477,6 +477,8 @@ func main() {
 
 	flag.Parse()
 
+	log.Println("rgip starting")
+
 	gcity = new(geodb)
 	if !*lite {
 		gspeed = new(geodb)
