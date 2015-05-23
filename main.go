@@ -322,6 +322,37 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 	encoder.Encode(ipinfo)
 }
 
+func lookupsHandler(w http.ResponseWriter, r *http.Request) {
+
+	Statistics.Requests.Add(1)
+
+	// split path for IP
+	args := strings.Split(r.URL.Path, "/")
+	// strip entry for "/lookup/"
+	args = args[2:]
+
+	if len(args) != 1 {
+		Statistics.Errors.Add(1)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	ipinfos := make(map[string]IPInfo)
+
+	for _, ip := range strings.Split(args[0], ",") {
+		ipinfo, err := lookupIPInfo(ip)
+		if err != nil {
+			ipinfos[ip] = IPInfo{IPStatus: "ParseError"}
+		} else {
+			ipinfos[ip] = ipinfo
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	encoder := json.NewEncoder(w)
+	encoder.Encode(ipinfos)
+}
+
 type errIPParse string
 
 func (ip errIPParse) Error() string {
@@ -572,6 +603,7 @@ func main() {
 	}()
 
 	http.HandleFunc("/lookup/", lookupHandler)
+	http.HandleFunc("/lookups/", lookupsHandler)
 
 	if p := os.Getenv("PORT"); p != "" {
 		*port, err = strconv.Atoi(p)
