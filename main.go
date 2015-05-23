@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"expvar"
 	"flag"
 	"fmt"
@@ -231,28 +232,12 @@ func loadIPRangesFromCSV(fname string, transform func(string) (int, error)) (ipR
 	return ips, nil
 }
 
-func lookupHandler(w http.ResponseWriter, r *http.Request) {
+var errParseError = errors.New("ipinfo: parse error")
 
-	Statistics.Requests.Add(1)
-
-	// split path for IP
-	args := strings.Split(r.URL.Path, "/")
-	// strip entry for "/lookup/"
-	args = args[2:]
-
-	if len(args) != 1 {
-		Statistics.Errors.Add(1)
-		http.Error(w, "", http.StatusBadRequest)
-		return
-	}
-
-	ip := args[0]
-
+func lookupIPInfo(ip string) (IPInfo, error) {
 	var netip net.IP
 	if netip = net.ParseIP(ip); netip == nil {
-		Statistics.Errors.Add(1)
-		http.Error(w, "", http.StatusBadRequest)
-		return
+		return IPInfo{}, errParseError
 	}
 
 	ipinfo := IPInfo{
@@ -305,6 +290,32 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// check EvilISP
+
+	return ipinfo, nil
+}
+
+func lookupHandler(w http.ResponseWriter, r *http.Request) {
+
+	Statistics.Requests.Add(1)
+
+	// split path for IP
+	args := strings.Split(r.URL.Path, "/")
+	// strip entry for "/lookup/"
+	args = args[2:]
+
+	if len(args) != 1 {
+		Statistics.Errors.Add(1)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	ip := args[0]
+	ipinfo, err := lookupIPInfo(ip)
+	if err != nil {
+		Statistics.Errors.Add(1)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	encoder := json.NewEncoder(w)
