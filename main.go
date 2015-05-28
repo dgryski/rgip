@@ -183,8 +183,6 @@ func (c *converr) check(s string, f func(string) (int, error)) int {
 
 func loadIPRangesFromCSV(fname string, transform func(string) (int, error)) (ipRangeList, error) {
 
-	var f io.ReadCloser
-
 	f, err := os.Open(fname)
 	defer f.Close()
 
