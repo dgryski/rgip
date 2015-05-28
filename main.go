@@ -24,7 +24,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/abh/geoip"
+	"github.com/dgryski/rgip/geoip"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -47,6 +47,7 @@ type City struct {
 	RegionName  string  `json:"region_name"`
 
 	AreaCode int `json:"area_code"`
+	TimeZone string
 }
 
 type IPInfo struct {
@@ -64,13 +65,15 @@ type IPInfo struct {
 var gcity, gspeed, gisp *geodb
 
 type geodb struct {
-	db *geoip.GeoIP
+	db *geoip.Database
 	sync.Mutex
 }
 
 func (g *geodb) load(dataDir, file string) error {
 	fname := path.Join(dataDir, file)
-	db, err := geoip.Open(fname)
+	opts := *geoip.DefaultOptions // copy
+	opts.NoLocks = true
+	db, err := geoip.Open(fname, &opts)
 	if err != nil {
 		log.Printf("error loading %s/%s: %s", dataDir, file, err)
 		return err
@@ -118,10 +121,10 @@ func (g *geodb) GetNameV6(ip string) string {
 	return name
 }
 
-func (g *geodb) GetRecord(ip string) *geoip.GeoIPRecord {
+func (g *geodb) GetRecord(ip string) *geoip.Record {
 	g.Lock()
 	defer g.Unlock()
-	return g.db.GetRecord(ip)
+	return g.db.Lookup(ip)
 }
 
 type ipRange struct {
@@ -281,10 +284,11 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 	if record := gcity.GetRecord(ip); record != nil {
 		ipinfo.City.City = record.City
 		ipinfo.CountryCode = strings.ToLower(record.CountryCode)
-		ipinfo.Latitude = record.Latitude
-		ipinfo.Longitude = record.Longitude
+		ipinfo.Latitude = float32(record.Latitude)
+		ipinfo.Longitude = float32(record.Longitude)
 		ipinfo.Region = record.Region
 		ipinfo.RegionName = geoip.GetRegionName(record.CountryCode, record.Region)
+		ipinfo.City.TimeZone = geoip.GetTimeZone(record.CountryCode, record.Region)
 
 		ipinfo.AreaCode = record.AreaCode
 	}
