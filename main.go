@@ -184,12 +184,11 @@ func (c *converr) check(s string, f func(string) (int, error)) int {
 func loadIPRangesFromCSV(fname string, transform func(string) (int, error)) (ipRangeList, error) {
 
 	f, err := os.Open(fname)
-	defer f.Close()
-
 	if err != nil {
 		log.Println("can't open ip ranges: ", err)
 		return nil, err
 	}
+	defer f.Close()
 
 	svr := csv.NewReader(f)
 
