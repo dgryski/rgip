@@ -44,10 +44,8 @@ type City struct {
 	Region      string  `json:"region"`
 	RegionName  string  `json:"region_name"`
 	PostalCode  string  `json:"postal_code"`
-
-	AreaCode int `json:"area_code"`
-
-	TimeZone string `json:"time_zone"`
+	AreaCode    int     `json:"area_code"`
+	TimeZone    string  `json:"time_zone"`
 }
 
 type IPInfo struct {
@@ -287,7 +285,6 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 		ipinfo.RegionName = geoip.GetRegionName(record.CountryCode, record.Region)
 		ipinfo.City.TimeZone = geoip.GetTimeZone(record.CountryCode, record.Region)
 		ipinfo.City.PostalCode = record.PostalCode
-
 		ipinfo.AreaCode = record.AreaCode
 	}
 
