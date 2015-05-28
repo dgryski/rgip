@@ -47,7 +47,8 @@ type City struct {
 	RegionName  string  `json:"region_name"`
 
 	AreaCode int `json:"area_code"`
-	TimeZone string
+
+	TimeZone string `json:"time_zone"`
 }
 
 type IPInfo struct {
