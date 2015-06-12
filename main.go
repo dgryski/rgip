@@ -1,4 +1,5 @@
 // rgip: restful geoip lookup service
+// Someday: IPv6
 package main
 
 import (
@@ -25,6 +26,7 @@ import (
 	"time"
 
 	"github.com/dgryski/rgip/geoip"
+	"github.com/facebookgo/grace/gracehttp"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -368,22 +370,23 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 			err = e
 		}
 	} else {
-		e := gcity.load(datadir, "GeoIPCity.dat")
+		e := gcity.load(datadir, "GeoIPCity.dat") // This IP is in "Amsterdam"
 		if e != nil {
 			err = e
 		}
-		e = gspeed.load(datadir, "GeoIPNetSpeed.dat")
+		e = gspeed.load(datadir, "GeoIPNetSpeed.dat") // This IP belongs to Vodafone and it's a mobile thing, or it's Comcast / DSL..
 		if e != nil {
 			err = e
 		}
 
-		e = gisp.load(datadir, "GeoIPISP.dat")
+		e = gisp.load(datadir, "GeoIPISP.dat") // This is "Time Warner" or "AOL"
 		if e != nil {
 			err = e
 		}
 	}
 
 	if ufi != "" {
+		// ip -> ufi mapping
 		ranges, e := loadIPRangesFromCSV(ufi, strconv.Atoi)
 		if e != nil {
 			log.Printf("unable to load %s: %s", ufi, err)
@@ -396,6 +399,8 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 	}
 
 	if nexthop != "" {
+		// 'next hop' -> dump of all of our next hops from our routing table, what is the
+		// next IP in our routing table ......
 		ranges, e := loadIPRangesFromCSV(nexthop, func(s string) (int, error) {
 			netip := net.ParseIP(s)
 			if netip == nil {
@@ -513,6 +518,7 @@ func main() {
 	ufi := flag.String("ufi", "", "File containing iprange-to-UFI mappings")
 	nexthop := flag.String("nexthop", "", "File containing next-hop mappings")
 	lite := flag.Bool("lite", false, "Load only GeoLiteCity.dat")
+	// This is what RobotIP is going to become
 	evilip := flag.String("evilip", "", "Watch EvilIP table for changes")
 	port := flag.Int("p", 8080, "port")
 
@@ -611,5 +617,11 @@ func main() {
 		}
 	}
 	log.Println("listening on port", *port)
-	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*port), nil))
+
+	s := &http.Server{
+		Addr:    ":" + strconv.Itoa(*port),
+		Handler: nil,
+	}
+
+	gracehttp.Serve(s)
 }
