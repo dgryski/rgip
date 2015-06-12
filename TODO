@@ -1,0 +1,3 @@
+- test in-place restarts and whether or not we hang for 10s (or any seconds)
+  while loading the file
+- V2 maxmind
