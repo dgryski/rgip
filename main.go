@@ -127,11 +127,6 @@ func (g *geodb) GetRecord(ip string) *geoip.Record {
 	return g.db.Lookup(ip)
 }
 
-type ipRange struct {
-	rangeFrom, rangeTo uint32
-	data               interface{}
-}
-
 type ipRangeList []ipRange
 
 func (r ipRangeList) Len() int           { return len(r) }
