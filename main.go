@@ -127,40 +127,6 @@ func (g *geodb) GetRecord(ip string) *geoip.Record {
 	return g.db.Lookup(ip)
 }
 
-type ipRangeList []ipRange
-
-func (r ipRangeList) Len() int           { return len(r) }
-func (r ipRangeList) Less(i, j int) bool { return (r)[i].rangeTo < (r)[j].rangeTo }
-func (r ipRangeList) Swap(i, j int)      { (r)[i], (r)[j] = (r)[j], (r)[i] }
-
-func (r ipRangeList) lookup(ip32 uint32) interface{} {
-
-	idx := sort.Search(len(r), func(i int) bool { return ip32 <= r[i].rangeTo })
-
-	if idx != -1 && r[idx].rangeFrom <= ip32 && ip32 <= r[idx].rangeTo {
-		return r[idx].data
-	}
-
-	return nil
-}
-
-type ipRanges struct {
-	ranges ipRangeList
-	sync.RWMutex
-}
-
-func (ipr *ipRanges) lookup(ip32 uint32) int {
-	ipr.Lock()
-	defer ipr.Unlock()
-	data := ipr.ranges.lookup(ip32)
-
-	if data == nil {
-		return 0
-	}
-
-	return data.(int)
-}
-
 var ufis, nexthops *ipRanges
 
 type converr struct {
@@ -422,44 +388,9 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 	return err
 }
 
-type BadIPRecord struct {
-	status  string
-	expires time.Time
-}
-
-type EvilIPList struct {
-	ipRanges
-	lastChange time.Time
-}
-
 var EvilIPs EvilIPList
 
-func (evil *EvilIPList) lookup(ip32 uint32) string {
-
-	if evil.ipRanges.ranges == nil {
-		return ""
-	}
-
-	evil.Lock()
-	defer evil.Unlock()
-
-	data := evil.ranges.lookup(ip32)
-
-	if data == nil {
-		return ""
-	}
-
-	val := data.(BadIPRecord)
-
-	if time.Now().After(val.expires) {
-		return ""
-	}
-
-	return val.status
-
-}
-
-func loadEvilIP(db *sql.DB) (ipRangeList, error) {
+func loadEvilIP(db *sql.DB) (badIpRangeList, error) {
 
 	// FIXME(dgryski); check if data *needs* reloading?
 	// FIXME(dgryski): current_date is sqlite-ism
@@ -472,7 +403,7 @@ func loadEvilIP(db *sql.DB) (ipRangeList, error) {
 
 	defer rows.Close()
 
-	var ranges ipRangeList
+	var ranges badIpRangeList
 
 	for rows.Next() {
 		var ip uint32
@@ -496,7 +427,7 @@ func loadEvilIP(db *sql.DB) (ipRangeList, error) {
 			expires: expireTime,
 		}
 
-		ranges = append(ranges, ipRange{rangeFrom: ipmin, rangeTo: ipmax, data: badIP})
+		ranges = append(ranges, badIpRange{rangeFrom: ipmin, rangeTo: ipmax, data: badIP})
 	}
 	err = rows.Err()
 	if err != nil {

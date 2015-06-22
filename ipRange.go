@@ -1,17 +1,52 @@
 package main
 
 import (
+	"github.com/edsrzf/mmap-go"
 	"io/ioutil"
 	"os"
 	"reflect"
+	"sort"
+	"sync"
 	"unsafe"
-
-	"github.com/edsrzf/mmap-go"
 )
 
 type ipRange struct {
 	rangeFrom, rangeTo uint32
-	data               interface{}
+	data               int
+}
+
+type ipRangeList []ipRange
+
+type ipRanges struct {
+	ranges ipRangeList
+	sync.RWMutex
+}
+
+func (r ipRangeList) Len() int           { return len(r) }
+func (r ipRangeList) Less(i, j int) bool { return (r)[i].rangeTo < (r)[j].rangeTo }
+func (r ipRangeList) Swap(i, j int)      { (r)[i], (r)[j] = (r)[j], (r)[i] }
+
+func (r ipRangeList) lookup(ip32 uint32) interface{} {
+
+	idx := sort.Search(len(r), func(i int) bool { return ip32 <= r[i].rangeTo })
+
+	if idx != -1 && r[idx].rangeFrom <= ip32 && ip32 <= r[idx].rangeTo {
+		return r[idx].data
+	}
+
+	return nil
+}
+
+func (ipr *ipRanges) lookup(ip32 uint32) int {
+	ipr.Lock()
+	defer ipr.Unlock()
+	data := ipr.ranges.lookup(ip32)
+
+	if data == nil {
+		return 0
+	}
+
+	return data.(int)
 }
 
 func reflectByteSlice(rows []ipRange) []byte {
