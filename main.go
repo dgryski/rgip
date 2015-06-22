@@ -177,6 +177,10 @@ func (c *converr) check(s string, f func(string) (int, error)) int {
 }
 
 func loadIPRangesFromCSV(fname string, transform func(string) (int, error)) (ipRangeList, error) {
+	extension := strings.Split(fname, ".")[1]
+	if extension == "mmap" {
+		return mmapIpRanges(fname)
+	}
 
 	f, err := os.Open(fname)
 	if err != nil {
