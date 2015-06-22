@@ -17,7 +17,7 @@ func TestWriteMmapAndReadAgain(t *testing.T) {
 
 	filename := "maxmind/mmap.test"
 	start := time.Now()
-	write(filename, want)
+	writeMmap(filename, want)
 	t.Logf("took %v seconds to write the mmap", time.Since(start).Seconds())
 	start = time.Now()
 	actual, err := mmapIpRanges(filename)

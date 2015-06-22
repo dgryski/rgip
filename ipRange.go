@@ -1,11 +1,16 @@
 package main
 
 import (
+	"encoding/csv"
+	"errors"
 	"github.com/edsrzf/mmap-go"
+	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"sync"
 	"unsafe"
 )
@@ -27,7 +32,6 @@ func (r ipRangeList) Less(i, j int) bool { return (r)[i].rangeTo < (r)[j].rangeT
 func (r ipRangeList) Swap(i, j int)      { (r)[i], (r)[j] = (r)[j], (r)[i] }
 
 func (r ipRangeList) lookup(ip32 uint32) interface{} {
-
 	idx := sort.Search(len(r), func(i int) bool { return ip32 <= r[i].rangeTo })
 
 	if idx != -1 && r[idx].rangeFrom <= ip32 && ip32 <= r[idx].rangeTo {
@@ -50,34 +54,32 @@ func (ipr *ipRanges) lookup(ip32 uint32) int {
 }
 
 func reflectByteSlice(rows []ipRange) []byte {
-	// Get the slice header
 	header := *(*reflect.SliceHeader)(unsafe.Pointer(&rows))
 
-	// The length and capacity of the slice are different.
 	size := int(unsafe.Sizeof(ipRange{}))
 	header.Len *= size
 	header.Cap *= size
 
-	// Convert slice header to a []byte
 	data := *(*[]byte)(unsafe.Pointer(&header))
 	return data
 }
 
-func reflectIpRangeRows(bytes []byte) []ipRange {
-	// Get the slice header
+func reflectIpRangeRows(bytes []byte) ([]ipRange, error) {
 	header := *(*reflect.SliceHeader)(unsafe.Pointer(&bytes))
 
-	// The length and capacity of the slice are different.
 	size := int(unsafe.Sizeof(ipRange{}))
+	if header.Len%size != 0 {
+		return nil, errors.New("the length of the byte array isn't a multiple of the size of an ipRange")
+	}
+
 	header.Len /= size
 	header.Cap /= size
 
-	// Convert slice header to a []byte
 	data := *(*[]ipRange)(unsafe.Pointer(&header))
-	return data
+	return data, nil
 }
 
-func write(filename string, ranges []ipRange) {
+func writeMmap(filename string, ranges []ipRange) {
 	representation := reflectByteSlice(ranges)
 	ioutil.WriteFile(filename, representation, 0644)
 }
@@ -93,5 +95,70 @@ func mmapIpRanges(filename string) ([]ipRange, error) {
 		return nil, err
 	}
 
-	return reflectIpRangeRows(mmapFile), nil
+	return reflectIpRangeRows(mmapFile)
+}
+
+func loadIpRangesFromCSV(fname string, transform func(string) (int, error)) (ipRangeList, error) {
+	f, err := os.Open(fname)
+	if err != nil {
+		log.Println("can't open file: ", fname, err)
+		return nil, err
+	}
+	defer f.Close()
+
+	svr := csv.NewReader(f)
+
+	var ips ipRangeList
+
+	prevIP := -1
+
+	for {
+		r, err := svr.Read()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			log.Println("error reading CSV: ", err)
+			return nil, err
+		}
+
+		var ipFrom, ipTo, data int
+
+		var convert converr
+		if len(r) < 3 {
+			ipFrom = prevIP + 1
+			ipTo = convert.check(r[0], strconv.Atoi)
+			data = convert.check(r[1], transform)
+			prevIP = ipTo
+		} else {
+			ipFrom = convert.check(r[0], strconv.Atoi)
+			ipTo = convert.check(r[1], strconv.Atoi)
+			data = convert.check(r[2], transform)
+		}
+
+		if convert.err != nil {
+			log.Printf("error parsing %v: %s", r, err)
+			return nil, convert.err
+		}
+
+		ips = append(ips, ipRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), data: data})
+	}
+
+	return ips, nil
+}
+
+func loadIpRanges(fname string, transform func(string) (int, error)) (ipRangeList, error) {
+	ips, err := mmapIpRanges(fname)
+	if err == nil {
+		return ips, err
+	}
+
+	ips, err = loadIpRangesFromCSV(fname, transform)
+	if err != nil {
+		return nil, err
+	}
+
+	writeMmap(fname, ips)
+	return mmapIpRanges(fname)
 }

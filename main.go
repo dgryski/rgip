@@ -4,13 +4,11 @@ package main
 
 import (
 	"database/sql"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"expvar"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -140,61 +138,6 @@ func (c *converr) check(s string, f func(string) (int, error)) int {
 		return 0
 	}
 	return i
-}
-
-func loadIPRangesFromCSV(fname string, transform func(string) (int, error)) (ipRangeList, error) {
-	extension := strings.Split(fname, ".")[1]
-	if extension == "mmap" {
-		return mmapIpRanges(fname)
-	}
-
-	f, err := os.Open(fname)
-	if err != nil {
-		log.Println("can't open ip ranges: ", err)
-		return nil, err
-	}
-	defer f.Close()
-
-	svr := csv.NewReader(f)
-
-	var ips ipRangeList
-
-	prevIP := -1
-
-	for {
-		r, err := svr.Read()
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			log.Println("error reading CSV: ", err)
-			return nil, err
-		}
-
-		var ipFrom, ipTo, data int
-
-		var convert converr
-		if len(r) < 3 {
-			ipFrom = prevIP + 1
-			ipTo = convert.check(r[0], strconv.Atoi)
-			data = convert.check(r[1], transform)
-			prevIP = ipTo
-		} else {
-			ipFrom = convert.check(r[0], strconv.Atoi)
-			ipTo = convert.check(r[1], strconv.Atoi)
-			data = convert.check(r[2], transform)
-		}
-
-		if convert.err != nil {
-			log.Printf("error parsing %v: %s", r, err)
-			return nil, convert.err
-		}
-
-		ips = append(ips, ipRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), data: data})
-	}
-
-	return ips, nil
 }
 
 var errParseError = errors.New("ipinfo: parse error")
@@ -352,7 +295,7 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 
 	if ufi != "" {
 		// ip -> ufi mapping
-		ranges, e := loadIPRangesFromCSV(ufi, strconv.Atoi)
+		ranges, e := loadIpRanges(ufi, strconv.Atoi)
 		if e != nil {
 			log.Printf("unable to load %s: %s", ufi, err)
 			err = e
@@ -366,7 +309,7 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 	if nexthop != "" {
 		// 'next hop' -> dump of all of our next hops from our routing table, what is the
 		// next IP in our routing table ......
-		ranges, e := loadIPRangesFromCSV(nexthop, func(s string) (int, error) {
+		ranges, e := loadIpRanges(nexthop, func(s string) (int, error) {
 			netip := net.ParseIP(s)
 			if netip == nil {
 				return 0, errIPParse(s)
