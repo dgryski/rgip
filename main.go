@@ -54,7 +54,7 @@ type IPInfo struct {
 	ISP      string `json:"isp"`
 	NetSpeed string `json:"netspeed"`
 	UFI      struct {
-		GuessedUFI int `json:"guessed_ufi"`
+		GuessedUFI int32 `json:"guessed_ufi"`
 	} `json:"ufi"`
 	NextHop  string `json:"next_hop_ip"`
 	IPStatus string `json:"ip_status"`

@@ -17,7 +17,7 @@ import (
 
 type ipRange struct {
 	rangeFrom, rangeTo uint32
-	data               int
+	data               int32
 }
 
 type ipRangeList []ipRange
@@ -41,7 +41,7 @@ func (r ipRangeList) lookup(ip32 uint32) interface{} {
 	return nil
 }
 
-func (ipr *ipRanges) lookup(ip32 uint32) int {
+func (ipr *ipRanges) lookup(ip32 uint32) int32 {
 	ipr.Lock()
 	defer ipr.Unlock()
 	data := ipr.ranges.lookup(ip32)
@@ -50,7 +50,7 @@ func (ipr *ipRanges) lookup(ip32 uint32) int {
 		return 0
 	}
 
-	return data.(int)
+	return data.(int32)
 }
 
 func reflectByteSlice(rows []ipRange) []byte {
@@ -142,7 +142,7 @@ func loadIpRangesFromCSV(fname string, transform func(string) (int, error)) (ipR
 			return nil, convert.err
 		}
 
-		ips = append(ips, ipRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), data: data})
+		ips = append(ips, ipRange{rangeFrom: uint32(ipFrom), rangeTo: uint32(ipTo), data: int32(data)})
 	}
 
 	return ips, nil
