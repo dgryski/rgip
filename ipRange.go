@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/csv"
-	"errors"
+	"fmt"
 	"github.com/edsrzf/mmap-go"
 	"io"
 	"io/ioutil"
@@ -31,26 +31,25 @@ func (r ipRangeList) Len() int           { return len(r) }
 func (r ipRangeList) Less(i, j int) bool { return (r)[i].rangeTo < (r)[j].rangeTo }
 func (r ipRangeList) Swap(i, j int)      { (r)[i], (r)[j] = (r)[j], (r)[i] }
 
-func (r ipRangeList) lookup(ip32 uint32) interface{} {
+func (r ipRangeList) lookup(ip32 uint32) (int32, error) {
 	idx := sort.Search(len(r), func(i int) bool { return ip32 <= r[i].rangeTo })
 
 	if idx != -1 && r[idx].rangeFrom <= ip32 && ip32 <= r[idx].rangeTo {
-		return r[idx].data
+		return r[idx].data, nil
 	}
 
-	return nil
+	return 0, fmt.Errorf("ip %d not found", ip32)
 }
 
-func (ipr *ipRanges) lookup(ip32 uint32) int32 {
+func (ipr *ipRanges) lookup(ip32 uint32) (int32, error) {
 	ipr.Lock()
 	defer ipr.Unlock()
-	data := ipr.ranges.lookup(ip32)
-
-	if data == nil {
-		return 0
+	data, err := ipr.ranges.lookup(ip32)
+	if err != nil {
+		return 0, err
 	}
 
-	return data.(int32)
+	return data, nil
 }
 
 func reflectByteSlice(rows []ipRange) []byte {
@@ -69,7 +68,7 @@ func reflectIpRangeRows(bytes []byte) ([]ipRange, error) {
 
 	size := int(unsafe.Sizeof(ipRange{}))
 	if header.Len%size != 0 {
-		return nil, errors.New("the length of the byte array isn't a multiple of the size of an ipRange")
+		return nil, fmt.Errorf("the length of the byte array %d isn't a multiple of the size of an ipRange %d", header.Len, size)
 	}
 
 	header.Len /= size

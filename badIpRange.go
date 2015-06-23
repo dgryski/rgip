@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -22,15 +23,14 @@ func (r badIpRangeList) Len() int           { return len(r) }
 func (r badIpRangeList) Less(i, j int) bool { return (r)[i].rangeTo < (r)[j].rangeTo }
 func (r badIpRangeList) Swap(i, j int)      { (r)[i], (r)[j] = (r)[j], (r)[i] }
 
-func (r badIpRangeList) lookup(ip32 uint32) interface{} {
-
+func (r badIpRangeList) lookup(ip32 uint32) (BadIPRecord, error) {
 	idx := sort.Search(len(r), func(i int) bool { return ip32 <= r[i].rangeTo })
 
 	if idx != -1 && r[idx].rangeFrom <= ip32 && ip32 <= r[idx].rangeTo {
-		return r[idx].data
+		return r[idx].data, nil
 	}
 
-	return nil
+	return BadIPRecord{}, fmt.Errorf("ip %d not found", ip32)
 }
 
 type badIpRanges struct {
@@ -38,16 +38,10 @@ type badIpRanges struct {
 	sync.RWMutex
 }
 
-func (ipr *badIpRanges) lookup(ip32 uint32) interface{} {
+func (ipr *badIpRanges) lookup(ip32 uint32) (BadIPRecord, error) {
 	ipr.Lock()
 	defer ipr.Unlock()
-	data := ipr.ranges.lookup(ip32)
-
-	if data == nil {
-		return 0
-	}
-
-	return data
+	return ipr.ranges.lookup(ip32)
 }
 
 type EvilIPList struct {
@@ -60,16 +54,14 @@ func (evil *EvilIPList) lookup(ip32 uint32) string {
 		return ""
 	}
 
-	data := evil.ranges.lookup(ip32)
-	if data == nil {
+	data, err := evil.ranges.lookup(ip32)
+	if err != nil {
 		return ""
 	}
 
-	val := data.(BadIPRecord)
-
-	if time.Now().After(val.expires) {
+	if time.Now().After(data.expires) {
 		return ""
 	}
 
-	return val.status
+	return data.status
 }

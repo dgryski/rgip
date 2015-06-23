@@ -176,12 +176,18 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 	}
 
 	if ufis != nil {
-		ipinfo.UFI.GuessedUFI = ufis.lookup(ip32)
+		ufi, err := ufis.lookup(ip32)
+		if err == nil {
+			ipinfo.UFI.GuessedUFI = ufi
+		}
 	}
 
 	if nexthops != nil {
-		nexthop := uint32(nexthops.lookup(ip32))
-		ipinfo.NextHop = net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String()
+		nexthopSigned, err := nexthops.lookup(ip32)
+		if err == nil {
+			nexthop := uint32(nexthopSigned)
+			ipinfo.NextHop = net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String()
+		}
 	}
 
 	ipinfo.IPStatus = EvilIPs.lookup(ip32)
