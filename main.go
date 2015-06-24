@@ -274,7 +274,7 @@ func (ip errIPParse) Error() string {
 	return fmt.Sprintf("bad ip address: %s", ip)
 }
 
-func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
+func loadDataFiles(lite bool, datadir, ufi, nexthop string, usemmap bool) error {
 
 	var err error
 
@@ -301,7 +301,7 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 
 	if ufi != "" {
 		// ip -> ufi mapping
-		ranges, e := loadIpRanges(ufi, strconv.Atoi)
+		ranges, e := loadIpRanges(ufi, usemmap, strconv.Atoi)
 		if e != nil {
 			log.Printf("unable to load %s: %s", ufi, err)
 			err = e
@@ -315,16 +315,7 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 	if nexthop != "" {
 		// 'next hop' -> dump of all of our next hops from our routing table, what is the
 		// next IP in our routing table ......
-		ranges, e := loadIpRanges(nexthop, func(s string) (int, error) {
-			netip := net.ParseIP(s)
-			if netip == nil {
-				return 0, errIPParse(s)
-			}
-
-			ip4 := netip.To4()
-			ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
-			return int(ip32), nil
-		})
+		ranges, e := loadNextHopRanges(nexthop, usemmap)
 		if e != nil {
 			log.Printf("unable to load %s: %s", nexthop, err)
 			err = e
@@ -335,6 +326,19 @@ func loadDataFiles(lite bool, datadir, ufi, nexthop string) error {
 		}
 	}
 	return err
+}
+
+func loadNextHopRanges(nexthop string, usemmap bool) (ipRangeList, error) {
+	return loadIpRanges(nexthop, usemmap, func(s string) (int, error) {
+		netip := net.ParseIP(s)
+		if netip == nil {
+			return 0, errIPParse(s)
+		}
+
+		ip4 := netip.To4()
+		ip32 := uint32(ip4[0])<<24 | uint32(ip4[1])<<16 | uint32(ip4[2])<<8 | uint32(ip4[3])
+		return int(ip32), nil
+	})
 }
 
 var EvilIPs EvilIPList
@@ -396,12 +400,44 @@ func main() {
 	dataDir := flag.String("datadir", "", "Directory containing GeoIP data files")
 	ufi := flag.String("ufi", "", "File containing iprange-to-UFI mappings")
 	nexthop := flag.String("nexthop", "", "File containing next-hop mappings")
+	usemmap := flag.Bool("mmap", false, "Memory-map iprange-to-UFI and next-hop mappings instead of parsing them as CSVs")
+	convert := flag.Bool("convert", false, "Parse iprange-to-UFI and next-hop CSVs and save them as Memory-map files")
 	lite := flag.Bool("lite", false, "Load only GeoLiteCity.dat")
 	// This is what RobotIP is going to become
 	evilip := flag.String("evilip", "", "Watch EvilIP table for changes")
 	port := flag.Int("p", 8080, "port")
 
 	flag.Parse()
+
+	if *ufi != "" {
+		ufis = new(ipRanges)
+		if *convert {
+      log.Println("loading iprange-to-UFI CSV")
+			ranges, e := loadIpRanges(*ufi, *usemmap, strconv.Atoi)
+			if e == nil {
+        ufiMmap := fmt.Sprintf("%s.mmap", *ufi)
+        log.Println("writing", ufiMmap)
+				writeMmap(ufiMmap, ranges)
+			}
+		}
+	}
+
+	if *nexthop != "" {
+		nexthops = new(ipRanges)
+		if *convert {
+      log.Println("loading next-hop CSV")
+			ranges, e := loadNextHopRanges(*nexthop, *usemmap)
+			if e == nil {
+        nexthopMmap := fmt.Sprintf("%s.mmap", *nexthop)
+        log.Println("writing", nexthopMmap)
+				writeMmap(nexthopMmap, ranges)
+			}
+		}
+	}
+
+	if *convert {
+		return
+	}
 
 	log.Println("rgip starting")
 
@@ -411,15 +447,8 @@ func main() {
 		gisp = new(geodb)
 	}
 
-	if *ufi != "" {
-		ufis = new(ipRanges)
-	}
 
-	if *nexthop != "" {
-		nexthops = new(ipRanges)
-	}
-
-	err := loadDataFiles(*lite, *dataDir, *ufi, *nexthop)
+	err := loadDataFiles(*lite, *dataDir, *ufi, *nexthop, *usemmap)
 	if err != nil {
 		log.Fatal("can't load data files: ", err)
 
@@ -460,7 +489,7 @@ func main() {
 			case <-sigs:
 				log.Println("Attempting to reload data files")
 				// TODO(dgryski): run this in a goroutine and catch panics()?
-				err := loadDataFiles(*lite, *dataDir, *ufi, *nexthop)
+				err := loadDataFiles(*lite, *dataDir, *ufi, *nexthop, *usemmap)
 				if err != nil {
 					// don't log err here, we've already done it in loadDataFiles
 					log.Println("failed to load some data files")

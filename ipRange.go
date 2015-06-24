@@ -147,17 +147,10 @@ func loadIpRangesFromCSV(fname string, transform func(string) (int, error)) (ipR
 	return ips, nil
 }
 
-func loadIpRanges(fname string, transform func(string) (int, error)) (ipRangeList, error) {
-	ips, err := mmapIpRanges(fname)
-	if err == nil {
-		return ips, err
+func loadIpRanges(fname string, usemmap bool, transform func(string) (int, error)) (ipRangeList, error) {
+	if usemmap {
+		return mmapIpRanges(fname)
 	}
 
-	ips, err = loadIpRangesFromCSV(fname, transform)
-	if err != nil {
-		return nil, err
-	}
-
-	writeMmap(fname, ips)
-	return mmapIpRanges(fname)
+	return loadIpRangesFromCSV(fname, transform)
 }
