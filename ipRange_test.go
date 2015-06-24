@@ -1,6 +1,8 @@
 package main
 
 import (
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 )
@@ -15,14 +17,20 @@ func TestWriteMmapAndReadAgain(t *testing.T) {
 		{387534214, 387534214, 20107098},
 	}
 
-	filename := "maxmind/mmap.test"
+	tempFile, err := ioutil.TempFile("", "rgipMmap")
+	if err != nil {
+		t.Errorf("couldn't create temp file")
+	}
+
+	t.Logf("filename %s", tempFile.Name())
+	defer os.Remove(tempFile.Name())
 	start := time.Now()
-	writeMmap(filename, want)
+	writeMmap(tempFile.Name(), want)
 	t.Logf("took %v seconds to write the mmap", time.Since(start).Seconds())
 	start = time.Now()
-	actual, err := mmapIpRanges(filename)
+	actual, err := mmapIpRanges(tempFile.Name())
 	if err != nil {
-		t.Errorf("couldn't load %s", filename)
+		t.Errorf("couldn't load %s", tempFile.Name())
 	}
 
 	t.Logf("took %v seconds to read the mmap", time.Since(start).Seconds())

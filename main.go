@@ -412,11 +412,11 @@ func main() {
 	if *ufi != "" {
 		ufis = new(ipRanges)
 		if *convert {
-      log.Println("loading iprange-to-UFI CSV")
+			log.Println("loading iprange-to-UFI CSV")
 			ranges, e := loadIpRanges(*ufi, *usemmap, strconv.Atoi)
 			if e == nil {
-        ufiMmap := fmt.Sprintf("%s.mmap", *ufi)
-        log.Println("writing", ufiMmap)
+				ufiMmap := fmt.Sprintf("%s.mmap", *ufi)
+				log.Println("writing", ufiMmap)
 				writeMmap(ufiMmap, ranges)
 			}
 		}
@@ -425,11 +425,11 @@ func main() {
 	if *nexthop != "" {
 		nexthops = new(ipRanges)
 		if *convert {
-      log.Println("loading next-hop CSV")
+			log.Println("loading next-hop CSV")
 			ranges, e := loadNextHopRanges(*nexthop, *usemmap)
 			if e == nil {
-        nexthopMmap := fmt.Sprintf("%s.mmap", *nexthop)
-        log.Println("writing", nexthopMmap)
+				nexthopMmap := fmt.Sprintf("%s.mmap", *nexthop)
+				log.Println("writing", nexthopMmap)
 				writeMmap(nexthopMmap, ranges)
 			}
 		}
@@ -446,7 +446,6 @@ func main() {
 		gspeed = new(geodb)
 		gisp = new(geodb)
 	}
-
 
 	err := loadDataFiles(*lite, *dataDir, *ufi, *nexthop, *usemmap)
 	if err != nil {
