@@ -176,15 +176,15 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 	}
 
 	if ufis != nil {
-		ufi, err := ufis.lookup(ip32)
-		if err == nil {
+		ufi, ok := ufis.lookup(ip32)
+		if ok {
 			ipinfo.UFI.GuessedUFI = ufi
 		}
 	}
 
 	if nexthops != nil {
-		nexthopSigned, err := nexthops.lookup(ip32)
-		if err == nil {
+		nexthopSigned, ok := nexthops.lookup(ip32)
+		if ok {
 			nexthop := uint32(nexthopSigned)
 			ipinfo.NextHop = net.IPv4(byte(nexthop>>24), byte(nexthop>>16), byte(nexthop>>8), byte(nexthop)).String()
 		}

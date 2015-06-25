@@ -19,18 +19,27 @@ func TestLookupBadIp(t *testing.T) {
 	}
 
 	tests := []struct {
+		name string
 		ip   uint32
 		want string
 	}{
 		{
+			"out of range",
+			387534201,
+			"",
+		},
+		{
+			"expired",
 			387534209,
 			"",
 		},
 		{
+			"exact hit",
 			387534214,
 			"badder",
 		},
 		{
+			"hit in the middle of a range",
 			387534212,
 			"bad",
 		},
@@ -39,7 +48,7 @@ func TestLookupBadIp(t *testing.T) {
 	for _, test := range tests {
 		actual := EvilIPs.lookup(test.ip)
 		if actual != test.want {
-			t.Errorf("actual %s != want %s", actual, test.want)
+			t.Errorf("test %s failed actual %s != want %s", test.name, actual, test.want)
 		}
 	}
 }

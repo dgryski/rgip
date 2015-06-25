@@ -31,25 +31,22 @@ func (r ipRangeList) Len() int           { return len(r) }
 func (r ipRangeList) Less(i, j int) bool { return (r)[i].rangeTo < (r)[j].rangeTo }
 func (r ipRangeList) Swap(i, j int)      { (r)[i], (r)[j] = (r)[j], (r)[i] }
 
-func (r ipRangeList) lookup(ip32 uint32) (int32, error) {
+// lookup returns the found value, if any, followed by a bool indicating whether the value was found
+func (r ipRangeList) lookup(ip32 uint32) (int32, bool) {
 	idx := sort.Search(len(r), func(i int) bool { return ip32 <= r[i].rangeTo })
 
 	if idx != -1 && r[idx].rangeFrom <= ip32 && ip32 <= r[idx].rangeTo {
-		return r[idx].data, nil
+		return r[idx].data, true
 	}
 
-	return 0, fmt.Errorf("ip %d not found", ip32)
+	return 0, false
 }
 
-func (ipr *ipRanges) lookup(ip32 uint32) (int32, error) {
+// lookup returns the found value, if any, followed by a bool indicating whether the value was found
+func (ipr *ipRanges) lookup(ip32 uint32) (int32, bool) {
 	ipr.Lock()
 	defer ipr.Unlock()
-	data, err := ipr.ranges.lookup(ip32)
-	if err != nil {
-		return 0, err
-	}
-
-	return data, nil
+	return ipr.ranges.lookup(ip32)
 }
 
 func reflectByteSlice(rows []ipRange) []byte {
