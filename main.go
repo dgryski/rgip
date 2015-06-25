@@ -360,6 +360,22 @@ func loadEvilIP(db *sql.DB) (badIpRangeList, error) {
 	return ranges, nil
 }
 
+func saveMmap(fname string, ranges []ipRange) {
+	fname = fmt.Sprintf("%s.mmap", fname)
+	log.Println("writing", len(ranges), "items to", fname)
+	file, err := os.Create(fname)
+	if err != nil {
+		log.Println("can't open file: ", fname, err)
+		return
+	}
+
+	defer file.Close()
+	err = writeMmap(file, ranges)
+	if err != nil {
+		log.Fatal("writeMmap failed", err)
+	}
+}
+
 func main() {
 
 	dataDir := flag.String("datadir", "", "Directory containing GeoIP data files")
@@ -379,15 +395,11 @@ func main() {
 			log.Println("loading iprange-to-UFI CSV")
 			ranges, e := loadIpRanges(*ufi, *usemmap)
 			if e == nil {
-				ufiMmap := fmt.Sprintf("%s.mmap", *ufi)
-				log.Println("writing", ufiMmap)
-				writeMmap(ufiMmap, ranges)
+				saveMmap(*ufi, ranges)
 			}
-		}
-	}
 
-	if *convert {
-		return
+			return
+		}
 	}
 
 	log.Println("rgip starting")

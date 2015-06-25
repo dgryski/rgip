@@ -1,11 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"github.com/edsrzf/mmap-go"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
@@ -14,6 +14,10 @@ import (
 	"sync"
 	"unsafe"
 )
+
+var magicBytes = []byte{'r', 'g', 'i', 'p', 'M', 'm', 'a', 'p', 'V', 0}
+
+const ipRangeSize int = int(unsafe.Sizeof(ipRange{}))
 
 type ipRange struct {
 	rangeFrom, rangeTo uint32
@@ -52,40 +56,52 @@ func (ipr *ipRanges) lookup(ip32 uint32) (int32, bool) {
 func reflectByteSlice(rows []ipRange) []byte {
 	header := *(*reflect.SliceHeader)(unsafe.Pointer(&rows))
 
-	size := int(unsafe.Sizeof(ipRange{}))
-	header.Len *= size
-	header.Cap *= size
+	header.Len *= ipRangeSize
+	header.Cap *= ipRangeSize
 
 	data := *(*[]byte)(unsafe.Pointer(&header))
 	return data
 }
 
-func reflectIpRangeRows(bytes []byte) ([]ipRange, error) {
-	header := *(*reflect.SliceHeader)(unsafe.Pointer(&bytes))
-
-	size := int(unsafe.Sizeof(ipRange{}))
-	if header.Len%size != 0 {
-		return nil, fmt.Errorf("the length of the byte array %d isn't a multiple of the size of an ipRange %d", header.Len, size)
+func reflectIpRangeRows(data []byte) ([]ipRange, error) {
+	dataLength := len(data) - 2*len(magicBytes)
+	if dataLength < 0 {
+		return nil, fmt.Errorf("file is too small for the expected format")
 	}
 
-	header.Len /= size
-	header.Cap /= size
+	head := data[:len(magicBytes)]
+	if !bytes.Equal(head, magicBytes) {
+		return nil, fmt.Errorf("file format is incorrect, expected header '%s', actual '%s'", magicBytes, head)
+	}
 
-	data := *(*[]ipRange)(unsafe.Pointer(&header))
-	return data, nil
+	footer := data[len(data)-len(magicBytes):]
+	if !bytes.Equal(footer, magicBytes) {
+		return nil, fmt.Errorf("file format is incorrect, expected footer '%s', actual '%s'", magicBytes, footer)
+	}
+
+	data = data[len(magicBytes) : len(data)-len(magicBytes)]
+	header := *(*reflect.SliceHeader)(unsafe.Pointer(&data))
+	header.Len /= ipRangeSize
+	header.Cap /= ipRangeSize
+	return *(*[]ipRange)(unsafe.Pointer(&header)), nil
 }
 
-func writeMmap(filename string, ranges []ipRange) {
-	representation := reflectByteSlice(ranges)
-	ioutil.WriteFile(filename, representation, 0644)
-}
-
-func mmapIpRanges(filename string) ([]ipRange, error) {
-	file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+func writeMmap(file *os.File, ranges []ipRange) error {
+	_, err := file.Write(magicBytes)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
+	_, err = file.Write(reflectByteSlice(ranges))
+	if err != nil {
+		return err
+	}
+
+	_, err = file.Write(magicBytes)
+	return err
+}
+
+func mmapIpRanges(file *os.File) ([]ipRange, error) {
 	mmapFile, err := mmap.Map(file, mmap.RDONLY, 0)
 	if err != nil {
 		return nil, err
@@ -95,14 +111,14 @@ func mmapIpRanges(filename string) ([]ipRange, error) {
 }
 
 func loadIpRangesFromCSV(fname string) (ipRangeList, error) {
-	f, err := os.Open(fname)
+	file, err := os.Open(fname)
 	if err != nil {
 		log.Println("can't open file: ", fname, err)
 		return nil, err
 	}
-	defer f.Close()
 
-	svr := csv.NewReader(f)
+	defer file.Close()
+	svr := csv.NewReader(file)
 
 	var ips ipRangeList
 
@@ -140,7 +156,14 @@ func loadIpRangesFromCSV(fname string) (ipRangeList, error) {
 
 func loadIpRanges(fname string, usemmap bool) (ipRangeList, error) {
 	if usemmap {
-		return mmapIpRanges(fname)
+		file, err := os.OpenFile(fname, os.O_RDONLY, 0644)
+		if err != nil {
+			log.Println("can't open file: ", fname, err)
+			return nil, err
+		}
+
+		defer file.Close()
+		return mmapIpRanges(file)
 	}
 
 	return loadIpRangesFromCSV(fname)

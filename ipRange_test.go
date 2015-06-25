@@ -4,7 +4,6 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
-	"time"
 )
 
 func TestWriteMmapAndReadAgain(t *testing.T) {
@@ -24,22 +23,20 @@ func TestWriteMmapAndReadAgain(t *testing.T) {
 
 	t.Logf("filename %s", tempFile.Name())
 	defer os.Remove(tempFile.Name())
-	start := time.Now()
-	writeMmap(tempFile.Name(), want)
-	t.Logf("took %v seconds to write the mmap", time.Since(start).Seconds())
-	start = time.Now()
-	actual, err := mmapIpRanges(tempFile.Name())
+	writeMmap(tempFile, want)
+	actual, err := mmapIpRanges(tempFile)
 	if err != nil {
-		t.Errorf("couldn't load %s", tempFile.Name())
+		t.Errorf("couldn't load %s: %s", tempFile.Name(), err)
+		return
 	}
-
-	t.Logf("took %v seconds to read the mmap", time.Since(start).Seconds())
 
 	if len(want) != len(actual) {
 		t.Errorf("length of input and output arrays is different, want %d, got %d", len(want), len(actual))
+		return
 	}
 
 	for i := range want {
+		t.Logf("i %d", i)
 		if want[i].rangeFrom != actual[i].rangeFrom {
 			t.Errorf("want %d, got %d", want[i].rangeFrom, actual[i].rangeFrom)
 		}
