@@ -122,16 +122,10 @@ func loadIpRangesFromCSV(fname string, transform func(string) (int, error)) (ipR
 		var ipFrom, ipTo, data int
 
 		var convert converr
-		if len(r) < 3 {
-			ipFrom = prevIP + 1
-			ipTo = convert.check(r[0], strconv.Atoi)
-			data = convert.check(r[1], transform)
-			prevIP = ipTo
-		} else {
-			ipFrom = convert.check(r[0], strconv.Atoi)
-			ipTo = convert.check(r[1], strconv.Atoi)
-			data = convert.check(r[2], transform)
-		}
+		ipFrom = prevIP + 1
+		ipTo = convert.check(r[0], strconv.Atoi)
+		data = convert.check(r[1], transform)
+		prevIP = ipTo
 
 		if convert.err != nil {
 			log.Printf("error parsing %v: %s", r, err)
