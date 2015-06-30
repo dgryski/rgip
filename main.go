@@ -310,8 +310,8 @@ var EvilIPs EvilIPList
 
 func loadEvilIP(db *sql.DB) (badIpRangeList, error) {
 
-	// FIXME(dgryski); check if data *needs* reloading?
-	// FIXME(dgryski): current_date is sqlite-ism
+	// TODO(dgryski); check if data *needs* reloading?
+	// TODO(dgryski): current_date is sqlite-ism
 
 	rows, err := db.Query("select ip, subnet, status, expires from EvilIP where expires > current_date")
 	if err != nil {
