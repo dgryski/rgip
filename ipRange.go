@@ -94,7 +94,7 @@ func mmapIpRanges(filename string) ([]ipRange, error) {
 	return reflectIpRangeRows(mmapFile)
 }
 
-func loadIpRangesFromCSV(fname string, transform func(string) (int, error)) (ipRangeList, error) {
+func loadIpRangesFromCSV(fname string) (ipRangeList, error) {
 	f, err := os.Open(fname)
 	if err != nil {
 		log.Println("can't open file: ", fname, err)
@@ -124,7 +124,7 @@ func loadIpRangesFromCSV(fname string, transform func(string) (int, error)) (ipR
 		var convert converr
 		ipFrom = prevIP + 1
 		ipTo = convert.check(r[0], strconv.Atoi)
-		data = convert.check(r[1], transform)
+		data = convert.check(r[1], strconv.Atoi)
 		prevIP = ipTo
 
 		if convert.err != nil {
@@ -138,10 +138,10 @@ func loadIpRangesFromCSV(fname string, transform func(string) (int, error)) (ipR
 	return ips, nil
 }
 
-func loadIpRanges(fname string, usemmap bool, transform func(string) (int, error)) (ipRangeList, error) {
+func loadIpRanges(fname string, usemmap bool) (ipRangeList, error) {
 	if usemmap {
 		return mmapIpRanges(fname)
 	}
 
-	return loadIpRangesFromCSV(fname, transform)
+	return loadIpRangesFromCSV(fname)
 }

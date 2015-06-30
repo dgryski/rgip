@@ -292,7 +292,7 @@ func loadDataFiles(lite bool, datadir, ufi string, usemmap bool) error {
 
 	if ufi != "" {
 		// ip -> ufi mapping
-		ranges, e := loadIpRanges(ufi, usemmap, strconv.Atoi)
+		ranges, e := loadIpRanges(ufi, usemmap)
 		if e != nil {
 			log.Printf("unable to load %s: %s", ufi, err)
 			err = e
@@ -377,7 +377,7 @@ func main() {
 		ufis = new(ipRanges)
 		if *convert {
 			log.Println("loading iprange-to-UFI CSV")
-			ranges, e := loadIpRanges(*ufi, *usemmap, strconv.Atoi)
+			ranges, e := loadIpRanges(*ufi, *usemmap)
 			if e == nil {
 				ufiMmap := fmt.Sprintf("%s.mmap", *ufi)
 				log.Println("writing", ufiMmap)
