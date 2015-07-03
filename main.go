@@ -294,7 +294,7 @@ func loadDataFiles(lite bool, datadir, ufi string, isbinary bool) error {
 		// ip -> ufi mapping
 		ranges, e := loadIpRanges(ufi, isbinary)
 		if e != nil {
-			log.Printf("unable to load %s: %s", ufi, err)
+			log.Printf("unable to load %s: %s", ufi, e)
 			err = e
 		} else {
 			ufis.Lock()
