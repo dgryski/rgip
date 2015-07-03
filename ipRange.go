@@ -66,13 +66,9 @@ func reflectByteSlice(rows []ipRange) []byte {
 
 func readMagicBytes(file io.Reader, name string) error {
 	b := make([]byte, len(magicBytes))
-	n, err := io.ReadFull(file, b)
+	_, err := io.ReadFull(file, b)
 	if err != nil {
-		return fmt.Errorf("can't read file %s %s", name, err)
-	}
-
-	if n != len(magicBytes) {
-		return fmt.Errorf("file format is incorrect, expected %d bytes in the %s, got %d", len(magicBytes), name, n)
+		return fmt.Errorf("error reading %s: %v", name, err)
 	}
 
 	if !bytes.Equal(b, magicBytes) {
@@ -89,16 +85,16 @@ func loadIpRangesFromBinary(file io.Reader) ([]ipRange, error) {
 	}
 
 	lenranges := make([]byte, 4)
-	n, err := io.ReadFull(file, lenranges)
-	if n != len(lenranges) || err != nil {
+	_, err = io.ReadFull(file, lenranges)
+	if err != nil {
 		return nil, fmt.Errorf("can't read file size field %s", err)
 	}
 
 	ranges := make([]ipRange, binary.LittleEndian.Uint32(lenranges))
 	b := make([]byte, ipRangeSize)
 	for i := range ranges {
-		n, err = io.ReadFull(file, b)
-		if n != ipRangeSize || err != nil {
+		_, err = io.ReadFull(file, b)
+		if err != nil {
 			return nil, fmt.Errorf("expected %d items, got %d", len(ranges), i)
 		}
 
