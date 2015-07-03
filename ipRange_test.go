@@ -44,7 +44,7 @@ func TestWriteBinaryAndReadAgain(t *testing.T) {
 	}
 }
 
-func Benchmark(b *testing.B) {
+func BenchmarkFileLoad(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		fname := "maxmind/GeoIPRange_dump.csv.bin"
 		ranges, err := loadIpRanges(fname, true)
