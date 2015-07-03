@@ -42,3 +42,17 @@ func TestWriteMmapAndReadAgain(t *testing.T) {
 		}
 	}
 }
+
+func Benchmark(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		fname := "maxmind/GeoIPRange_dump.csv.mmap"
+		ranges, err := loadIpRanges(fname, true)
+		if err != nil {
+			b.Errorf("couldn't load %s: %s", fname, err)
+		}
+
+		if len(ranges) < 1000 {
+			b.Errorf("loaded only %d entries", len(ranges))
+		}
+	}
+}
