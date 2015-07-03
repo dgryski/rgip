@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/csv"
@@ -63,9 +64,9 @@ func reflectByteSlice(rows []ipRange) []byte {
 	return data
 }
 
-func readMagicBytes(file *os.File, name string) error {
+func readMagicBytes(file io.Reader, name string) error {
 	b := make([]byte, len(magicBytes))
-	n, err := file.Read(b)
+	n, err := io.ReadFull(file, b)
 	if err != nil {
 		return fmt.Errorf("can't read file %s %s", name, err)
 	}
@@ -81,14 +82,14 @@ func readMagicBytes(file *os.File, name string) error {
 	return nil
 }
 
-func loadIpRangesFromBinary(file *os.File) ([]ipRange, error) {
+func loadIpRangesFromBinary(file io.Reader) ([]ipRange, error) {
 	err := readMagicBytes(file, "header")
 	if err != nil {
 		return nil, err
 	}
 
 	lenranges := make([]byte, 4)
-	n, err := file.Read(lenranges)
+	n, err := io.ReadFull(file, lenranges)
 	if n != len(lenranges) || err != nil {
 		return nil, fmt.Errorf("can't read file size field %s", err)
 	}
@@ -96,7 +97,7 @@ func loadIpRangesFromBinary(file *os.File) ([]ipRange, error) {
 	ranges := make([]ipRange, binary.LittleEndian.Uint32(lenranges))
 	b := make([]byte, ipRangeSize)
 	for i := range ranges {
-		n, err = file.Read(b)
+		n, err = io.ReadFull(file, b)
 		if n != ipRangeSize || err != nil {
 			return nil, fmt.Errorf("expected %d items, got %d", len(ranges), i)
 		}
@@ -184,7 +185,7 @@ func loadIpRanges(fname string, isbinary bool) (ipRangeList, error) {
 
 	defer file.Close()
 	if isbinary {
-		return loadIpRangesFromBinary(file)
+		return loadIpRangesFromBinary(bufio.NewReader(file))
 	}
 
 	return loadIpRangesFromCSV(file)
