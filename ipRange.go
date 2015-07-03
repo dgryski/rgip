@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/csv"
 	"fmt"
-	"github.com/edsrzf/mmap-go"
 	"io"
 	"log"
 	"os"
@@ -63,31 +63,68 @@ func reflectByteSlice(rows []ipRange) []byte {
 	return data
 }
 
-func reflectIpRangeRows(data []byte) ([]ipRange, error) {
-	dataLength := len(data) - 2*len(magicBytes)
-	if dataLength < 0 {
-		return nil, fmt.Errorf("file is too small for the expected format")
+func readMagicBytes(file *os.File, name string) error {
+	b := make([]byte, len(magicBytes))
+	n, err := file.Read(b)
+	if err != nil {
+		return fmt.Errorf("can't read file %s %s", name, err)
 	}
 
-	head := data[:len(magicBytes)]
-	if !bytes.Equal(head, magicBytes) {
-		return nil, fmt.Errorf("file format is incorrect, expected header '%s', actual '%s'", magicBytes, head)
+	if n != len(magicBytes) {
+		return fmt.Errorf("file format is incorrect, expected %d bytes in the %s, got %d", len(magicBytes), name, n)
 	}
 
-	footer := data[len(data)-len(magicBytes):]
-	if !bytes.Equal(footer, magicBytes) {
-		return nil, fmt.Errorf("file format is incorrect, expected footer '%s', actual '%s'", magicBytes, footer)
+	if !bytes.Equal(b, magicBytes) {
+		return fmt.Errorf("file format is incorrect, expected %s '%s', actual '%s'", name, magicBytes, b)
 	}
 
-	data = data[len(magicBytes) : len(data)-len(magicBytes)]
-	header := *(*reflect.SliceHeader)(unsafe.Pointer(&data))
-	header.Len /= ipRangeSize
-	header.Cap /= ipRangeSize
-	return *(*[]ipRange)(unsafe.Pointer(&header)), nil
+	return nil
 }
 
-func writeMmap(file *os.File, ranges []ipRange) error {
+func loadIpRangesFromBinary(file *os.File) ([]ipRange, error) {
+	err := readMagicBytes(file, "header")
+	if err != nil {
+		return nil, err
+	}
+
+	lenranges := make([]byte, 4)
+	n, err := file.Read(lenranges)
+	if n != len(lenranges) || err != nil {
+		return nil, fmt.Errorf("can't read file size field %s", err)
+	}
+
+	ranges := make([]ipRange, binary.LittleEndian.Uint32(lenranges))
+	b := make([]byte, ipRangeSize)
+	for i := range ranges {
+		n, err = file.Read(b)
+		if n != ipRangeSize || err != nil {
+			return nil, fmt.Errorf("expected %d items, got %d", len(ranges), i)
+		}
+
+		ranges[i] = ipRange{
+			binary.LittleEndian.Uint32(b[0:]),
+			binary.LittleEndian.Uint32(b[4:]),
+			int32(binary.LittleEndian.Uint32(b[8:])),
+		}
+	}
+
+	err = readMagicBytes(file, "footer")
+	if err != nil {
+		return nil, err
+	}
+
+	return ranges, nil
+}
+
+func writeBinary(file *os.File, ranges []ipRange) error {
 	_, err := file.Write(magicBytes)
+	if err != nil {
+		return err
+	}
+
+	lenranges := make([]byte, 4)
+	binary.LittleEndian.PutUint32(lenranges, uint32(len(ranges)))
+	_, err = file.Write(lenranges)
 	if err != nil {
 		return err
 	}
@@ -101,23 +138,7 @@ func writeMmap(file *os.File, ranges []ipRange) error {
 	return err
 }
 
-func mmapIpRanges(file *os.File) ([]ipRange, error) {
-	mmapFile, err := mmap.Map(file, mmap.RDONLY, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	return reflectIpRangeRows(mmapFile)
-}
-
-func loadIpRangesFromCSV(fname string) (ipRangeList, error) {
-	file, err := os.Open(fname)
-	if err != nil {
-		log.Println("can't open file: ", fname, err)
-		return nil, err
-	}
-
-	defer file.Close()
+func loadIpRangesFromCSV(file *os.File) (ipRangeList, error) {
 	svr := csv.NewReader(file)
 
 	var ips ipRangeList
@@ -154,17 +175,17 @@ func loadIpRangesFromCSV(fname string) (ipRangeList, error) {
 	return ips, nil
 }
 
-func loadIpRanges(fname string, usemmap bool) (ipRangeList, error) {
-	if usemmap {
-		file, err := os.OpenFile(fname, os.O_RDONLY, 0644)
-		if err != nil {
-			log.Println("can't open file: ", fname, err)
-			return nil, err
-		}
-
-		defer file.Close()
-		return mmapIpRanges(file)
+func loadIpRanges(fname string, isbinary bool) (ipRangeList, error) {
+	file, err := os.Open(fname)
+	if err != nil {
+		log.Println("can't open file: ", fname, err)
+		return nil, err
 	}
 
-	return loadIpRangesFromCSV(fname)
+	defer file.Close()
+	if isbinary {
+		return loadIpRangesFromBinary(file)
+	}
+
+	return loadIpRangesFromCSV(file)
 }

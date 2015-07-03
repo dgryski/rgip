@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestWriteMmapAndReadAgain(t *testing.T) {
+func TestWriteBinaryAndReadAgain(t *testing.T) {
 	want := []ipRange{
 		{387534209, 387534209, 20107093},
 		{387534210, 387534210, 20107094},
@@ -16,15 +16,16 @@ func TestWriteMmapAndReadAgain(t *testing.T) {
 		{387534214, 387534214, 20107098},
 	}
 
-	tempFile, err := ioutil.TempFile("", "rgipMmap")
+	tempFile, err := ioutil.TempFile("", "rgipBinary")
 	if err != nil {
 		t.Errorf("couldn't create temp file")
 	}
 
 	t.Logf("filename %s", tempFile.Name())
 	defer os.Remove(tempFile.Name())
-	writeMmap(tempFile, want)
-	actual, err := mmapIpRanges(tempFile)
+	writeBinary(tempFile, want)
+	tempFile.Seek(0, 0)
+	actual, err := loadIpRangesFromBinary(tempFile)
 	if err != nil {
 		t.Errorf("couldn't load %s: %s", tempFile.Name(), err)
 		return
@@ -45,7 +46,7 @@ func TestWriteMmapAndReadAgain(t *testing.T) {
 
 func Benchmark(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		fname := "maxmind/GeoIPRange_dump.csv.mmap"
+		fname := "maxmind/GeoIPRange_dump.csv.bin"
 		ranges, err := loadIpRanges(fname, true)
 		if err != nil {
 			b.Errorf("couldn't load %s: %s", fname, err)

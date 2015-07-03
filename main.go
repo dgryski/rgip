@@ -265,7 +265,7 @@ func (ip errIPParse) Error() string {
 	return fmt.Sprintf("bad ip address: %s", ip)
 }
 
-func loadDataFiles(lite bool, datadir, ufi string, usemmap bool) error {
+func loadDataFiles(lite bool, datadir, ufi string, isbinary bool) error {
 
 	var err error
 
@@ -292,7 +292,7 @@ func loadDataFiles(lite bool, datadir, ufi string, usemmap bool) error {
 
 	if ufi != "" {
 		// ip -> ufi mapping
-		ranges, e := loadIpRanges(ufi, usemmap)
+		ranges, e := loadIpRanges(ufi, isbinary)
 		if e != nil {
 			log.Printf("unable to load %s: %s", ufi, err)
 			err = e
@@ -360,8 +360,8 @@ func loadEvilIP(db *sql.DB) (badIpRangeList, error) {
 	return ranges, nil
 }
 
-func saveMmap(fname string, ranges []ipRange) {
-	fname = fmt.Sprintf("%s.mmap", fname)
+func saveBinary(fname string, ranges []ipRange) {
+	fname = fmt.Sprintf("%s.bin", fname)
 	log.Println("writing", len(ranges), "items to", fname)
 	file, err := os.Create(fname)
 	if err != nil {
@@ -370,9 +370,9 @@ func saveMmap(fname string, ranges []ipRange) {
 	}
 
 	defer file.Close()
-	err = writeMmap(file, ranges)
+	err = writeBinary(file, ranges)
 	if err != nil {
-		log.Fatal("writeMmap failed", err)
+		log.Fatal("saveBinary failed", err)
 	}
 }
 
@@ -380,7 +380,7 @@ func main() {
 
 	dataDir := flag.String("datadir", "", "Directory containing GeoIP data files")
 	ufi := flag.String("ufi", "", "File containing iprange-to-UFI mappings")
-	usemmap := flag.Bool("mmap", false, "Memory-map iprange-to-UFI mapping instead of parsing it  as CSV")
+	isbinary := flag.Bool("isbinary", false, "load iprange-to-UFI mapping as a binary file instead of parsing it as CSV")
 	convert := flag.Bool("convert", false, "Parse iprange-to-UFI CSV and save it as Memory-map files")
 	lite := flag.Bool("lite", false, "Load only GeoLiteCity.dat")
 	// This is what RobotIP is going to become
@@ -393,9 +393,9 @@ func main() {
 		ufis = new(ipRanges)
 		if *convert {
 			log.Println("loading iprange-to-UFI CSV")
-			ranges, e := loadIpRanges(*ufi, *usemmap)
+			ranges, e := loadIpRanges(*ufi, *isbinary)
 			if e == nil {
-				saveMmap(*ufi, ranges)
+				saveBinary(*ufi, ranges)
 			}
 
 			return
@@ -410,7 +410,7 @@ func main() {
 		gisp = new(geodb)
 	}
 
-	err := loadDataFiles(*lite, *dataDir, *ufi, *usemmap)
+	err := loadDataFiles(*lite, *dataDir, *ufi, *isbinary)
 	if err != nil {
 		log.Fatal("can't load data files: ", err)
 
@@ -451,7 +451,7 @@ func main() {
 			case <-sigs:
 				log.Println("Attempting to reload data files")
 				// TODO(dgryski): run this in a goroutine and catch panics()?
-				err := loadDataFiles(*lite, *dataDir, *ufi, *usemmap)
+				err := loadDataFiles(*lite, *dataDir, *ufi, *isbinary)
 				if err != nil {
 					// don't log err here, we've already done it in loadDataFiles
 					log.Println("failed to load some data files")
