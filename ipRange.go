@@ -15,7 +15,7 @@ import (
 	"unsafe"
 )
 
-var magicBytes = []byte{'r', 'g', 'i', 'p', 'M', 'm', 'a', 'p', 'V', 0}
+var magicBytes = []byte{'r', 'g', 'i', 'p', 'M', 'a', 'p', 0}
 
 const ipRangeSize int = int(unsafe.Sizeof(ipRange{}))
 
