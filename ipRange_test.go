@@ -25,7 +25,7 @@ func TestWriteBinaryAndReadAgain(t *testing.T) {
 	defer os.Remove(tempFile.Name())
 	writeBinary(tempFile, want)
 	tempFile.Seek(0, 0)
-	actual, err := loadIpRangesFromBinary(tempFile)
+	actual, err := loadIPRangesFromBinary(tempFile)
 	if err != nil {
 		t.Errorf("couldn't load %s: %s", tempFile.Name(), err)
 		return
@@ -47,7 +47,7 @@ func TestWriteBinaryAndReadAgain(t *testing.T) {
 func BenchmarkFileLoad(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		fname := "maxmind/GeoIPRange_dump.csv.bin"
-		ranges, err := loadIpRanges(fname, true)
+		ranges, err := loadIPRanges(fname, true)
 		if err != nil {
 			b.Errorf("couldn't load %s: %s", fname, err)
 		}

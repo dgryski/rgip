@@ -78,7 +78,7 @@ func readMagicBytes(file io.Reader, name string) error {
 	return nil
 }
 
-func loadIpRangesFromBinary(file io.Reader) ([]ipRange, error) {
+func loadIPRangesFromBinary(file io.Reader) ([]ipRange, error) {
 	err := readMagicBytes(file, "header")
 	if err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func writeBinary(file *os.File, ranges []ipRange) error {
 	return err
 }
 
-func loadIpRangesFromCSV(file *os.File) (ipRangeList, error) {
+func loadIPRangesFromCSV(file *os.File) (ipRangeList, error) {
 	svr := csv.NewReader(file)
 
 	var ips ipRangeList
@@ -172,7 +172,7 @@ func loadIpRangesFromCSV(file *os.File) (ipRangeList, error) {
 	return ips, nil
 }
 
-func loadIpRanges(fname string, isbinary bool) (ipRangeList, error) {
+func loadIPRanges(fname string, isbinary bool) (ipRangeList, error) {
 	file, err := os.Open(fname)
 	if err != nil {
 		log.Println("can't open file: ", fname, err)
@@ -181,8 +181,8 @@ func loadIpRanges(fname string, isbinary bool) (ipRangeList, error) {
 
 	defer file.Close()
 	if isbinary {
-		return loadIpRangesFromBinary(bufio.NewReader(file))
+		return loadIPRangesFromBinary(bufio.NewReader(file))
 	}
 
-	return loadIpRangesFromCSV(file)
+	return loadIPRangesFromCSV(file)
 }

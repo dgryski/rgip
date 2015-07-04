@@ -11,19 +11,19 @@ type BadIPRecord struct {
 	expires time.Time
 }
 
-type badIpRange struct {
+type badIPRange struct {
 	rangeFrom, rangeTo uint32
 	data               BadIPRecord
 }
 
-type badIpRangeList []badIpRange
+type badIPRangeList []badIPRange
 
-func (r badIpRangeList) Len() int           { return len(r) }
-func (r badIpRangeList) Less(i, j int) bool { return (r)[i].rangeTo < (r)[j].rangeTo }
-func (r badIpRangeList) Swap(i, j int)      { (r)[i], (r)[j] = (r)[j], (r)[i] }
+func (r badIPRangeList) Len() int           { return len(r) }
+func (r badIPRangeList) Less(i, j int) bool { return (r)[i].rangeTo < (r)[j].rangeTo }
+func (r badIPRangeList) Swap(i, j int)      { (r)[i], (r)[j] = (r)[j], (r)[i] }
 
 // lookup returns the found value, if any, followed by a bool indicating whether the value was found
-func (r badIpRangeList) lookup(ip32 uint32) (BadIPRecord, bool) {
+func (r badIPRangeList) lookup(ip32 uint32) (BadIPRecord, bool) {
 	idx := sort.Search(len(r), func(i int) bool { return ip32 <= r[i].rangeTo })
 
 	if idx != -1 && r[idx].rangeFrom <= ip32 && ip32 <= r[idx].rangeTo {
@@ -33,26 +33,26 @@ func (r badIpRangeList) lookup(ip32 uint32) (BadIPRecord, bool) {
 	return BadIPRecord{}, false
 }
 
-type badIpRanges struct {
-	ranges badIpRangeList
+type badIPRanges struct {
+	ranges badIPRangeList
 	sync.RWMutex
 }
 
 // lookup returns the found value, if any, followed by a bool indicating whether the value was found
-func (ipr *badIpRanges) lookup(ip32 uint32) (BadIPRecord, bool) {
+func (ipr *badIPRanges) lookup(ip32 uint32) (BadIPRecord, bool) {
 	ipr.Lock()
 	defer ipr.Unlock()
 	return ipr.ranges.lookup(ip32)
 }
 
 type EvilIPList struct {
-	badIpRanges
+	badIPRanges
 	lastChange time.Time
 }
 
 // lookup returns the found value, if it's not expired, or an empty string if valid value was found
 func (evil *EvilIPList) lookup(ip32 uint32) string {
-	if evil.badIpRanges.ranges == nil {
+	if evil.badIPRanges.ranges == nil {
 		return ""
 	}
 

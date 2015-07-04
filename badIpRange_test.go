@@ -6,12 +6,12 @@ import (
 )
 
 func TestLookupBadIp(t *testing.T) {
-	unix_limit := time.Date(2038, time.January, 19, 3, 14, 8, 0, time.UTC)
-	var badIps badIpRanges
-	badIps.ranges = []badIpRange{
+	unixLimit := time.Date(2038, time.January, 19, 3, 14, 8, 0, time.UTC)
+	var badIps badIPRanges
+	badIps.ranges = []badIPRange{
 		{387534209, 387534209, BadIPRecord{"expired", time.Now()}},
-		{387534210, 387534213, BadIPRecord{"bad", unix_limit}},
-		{387534214, 387534214, BadIPRecord{"badder", unix_limit}},
+		{387534210, 387534213, BadIPRecord{"bad", unixLimit}},
+		{387534214, 387534214, BadIPRecord{"badder", unixLimit}},
 	}
 	EvilIPs := EvilIPList{
 		badIps,

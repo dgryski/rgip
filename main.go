@@ -292,7 +292,7 @@ func loadDataFiles(lite bool, datadir, ufi string, isbinary bool) error {
 
 	if ufi != "" {
 		// ip -> ufi mapping
-		ranges, e := loadIpRanges(ufi, isbinary)
+		ranges, e := loadIPRanges(ufi, isbinary)
 		if e != nil {
 			log.Printf("unable to load %s: %s", ufi, e)
 			err = e
@@ -308,7 +308,7 @@ func loadDataFiles(lite bool, datadir, ufi string, isbinary bool) error {
 
 var EvilIPs EvilIPList
 
-func loadEvilIP(db *sql.DB) (badIpRangeList, error) {
+func loadEvilIP(db *sql.DB) (badIPRangeList, error) {
 
 	// TODO(dgryski); check if data *needs* reloading?
 	// TODO(dgryski): current_date is sqlite-ism
@@ -321,7 +321,7 @@ func loadEvilIP(db *sql.DB) (badIpRangeList, error) {
 
 	defer rows.Close()
 
-	var ranges badIpRangeList
+	var ranges badIPRangeList
 
 	for rows.Next() {
 		var ip uint32
@@ -345,7 +345,7 @@ func loadEvilIP(db *sql.DB) (badIpRangeList, error) {
 			expires: expireTime,
 		}
 
-		ranges = append(ranges, badIpRange{rangeFrom: ipmin, rangeTo: ipmax, data: badIP})
+		ranges = append(ranges, badIPRange{rangeFrom: ipmin, rangeTo: ipmax, data: badIP})
 	}
 	err = rows.Err()
 	if err != nil {
@@ -393,7 +393,7 @@ func main() {
 		ufis = new(ipRanges)
 		if *convert {
 			log.Println("loading iprange-to-UFI CSV")
-			ranges, e := loadIpRanges(*ufi, *isbinary)
+			ranges, e := loadIPRanges(*ufi, *isbinary)
 			if e == nil {
 				saveBinary(*ufi, ranges)
 			}
