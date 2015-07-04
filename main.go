@@ -181,7 +181,7 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 		}
 	}
 
-	ipinfo.IPStatus = EvilIPs.lookup(ip32)
+	ipinfo.IPStatus = evilIPs.lookup(ip32)
 
 	if record := gcity.GetRecord(ip); record != nil {
 		ipinfo.City.City = record.City
@@ -300,7 +300,7 @@ func loadDataFiles(lite bool, datadir, ufi string, isbinary bool) error {
 	return err
 }
 
-var EvilIPs EvilIPList
+var evilIPs evilIPList
 
 func loadEvilIP(db *sql.DB) (badIPRangeList, error) {
 
@@ -334,7 +334,7 @@ func loadEvilIP(db *sql.DB) (badIPRangeList, error) {
 		ipmax := ip | mask
 
 		expireTime, err := time.Parse("2006-01-02", expires)
-		badIP := BadIPRecord{
+		badIP := badIPRecord{
 			status:  status,
 			expires: expireTime,
 		}
@@ -422,9 +422,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		} else {
-			EvilIPs.Lock()
-			EvilIPs.ranges = ranges
-			EvilIPs.Unlock()
+			evilIPs.Lock()
+			evilIPs.ranges = ranges
+			evilIPs.Unlock()
 		}
 	}
 
@@ -462,9 +462,9 @@ func main() {
 				} else {
 					// assign ranges to evilips
 					log.Println("EvilIP data reloaded")
-					EvilIPs.Lock()
-					EvilIPs.ranges = ranges
-					EvilIPs.Unlock()
+					evilIPs.Lock()
+					evilIPs.ranges = ranges
+					evilIPs.Unlock()
 				}
 			}
 		}

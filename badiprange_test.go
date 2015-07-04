@@ -9,11 +9,11 @@ func TestLookupBadIp(t *testing.T) {
 	unixLimit := time.Date(2038, time.January, 19, 3, 14, 8, 0, time.UTC)
 	var badIps badIPRanges
 	badIps.ranges = []badIPRange{
-		{387534209, 387534209, BadIPRecord{"expired", time.Now()}},
-		{387534210, 387534213, BadIPRecord{"bad", unixLimit}},
-		{387534214, 387534214, BadIPRecord{"badder", unixLimit}},
+		{387534209, 387534209, badIPRecord{"expired", time.Now()}},
+		{387534210, 387534213, badIPRecord{"bad", unixLimit}},
+		{387534214, 387534214, badIPRecord{"badder", unixLimit}},
 	}
-	EvilIPs := EvilIPList{
+	evilIPs := evilIPList{
 		badIps,
 		time.Now(),
 	}
@@ -46,7 +46,7 @@ func TestLookupBadIp(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := EvilIPs.lookup(test.ip)
+		actual := evilIPs.lookup(test.ip)
 		if actual != test.want {
 			t.Errorf("test %s failed actual %s != want %s", test.name, actual, test.want)
 		}
