@@ -259,12 +259,6 @@ func lookupsHandler(w http.ResponseWriter, r *http.Request) {
 	encoder.Encode(ipinfos)
 }
 
-type errIPParse string
-
-func (ip errIPParse) Error() string {
-	return fmt.Sprintf("bad ip address: %s", ip)
-}
-
 func loadDataFiles(lite bool, datadir, ufi string, isbinary bool) error {
 
 	var err error
