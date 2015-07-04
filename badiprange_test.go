@@ -46,9 +46,8 @@ func TestLookupBadIp(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := evilIPs.lookup(test.ip)
-		if actual != test.want {
-			t.Errorf("test %s failed actual %s != want %s", test.name, actual, test.want)
+		if got := evilIPs.lookup(test.ip); got != test.want {
+			t.Errorf("lookup(%v)=%q, want %q (%s)", test.ip, got, test.want, test.name)
 		}
 	}
 }
