@@ -28,6 +28,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// Statistics tracks metrics for this server
 var Statistics = struct {
 	Requests *expvar.Int
 	Errors   *expvar.Int
@@ -36,6 +37,7 @@ var Statistics = struct {
 	Errors:   expvar.NewInt("errors"),
 }
 
+// City is a maxmind GeoIP city response
 type City struct {
 	City        string  `json:"city"`
 	CountryCode string  `json:"country_code"`
@@ -48,6 +50,7 @@ type City struct {
 	TimeZone    string  `json:"time_zone"`
 }
 
+// IPInfo is the response type for the server
 type IPInfo struct {
 	IP       string `json:"ip"`
 	City     `json:"city"`
@@ -59,7 +62,12 @@ type IPInfo struct {
 	IPStatus string `json:"ip_status"`
 }
 
-var gcity, gspeed, gisp *geodb
+// these are connections to the different maxmind geoip databases
+var (
+	gcity  *geodb
+	gspeed *geodb
+	gisp   *geodb
+)
 
 type geodb struct {
 	db *geoip.Database
@@ -124,6 +132,7 @@ func (g *geodb) GetRecord(ip string) *geoip.Record {
 	return g.db.Lookup(ip)
 }
 
+// ufis maps IP addresses to UFIs
 var ufis *ipRanges
 
 type converr struct {
@@ -300,6 +309,7 @@ func loadDataFiles(lite bool, datadir, ufi string, isbinary bool) error {
 	return err
 }
 
+// evilIPs hosts the list of 'bad' IPs and their statuses
 var evilIPs evilIPList
 
 func loadEvilIP(db *sql.DB) (badIPRangeList, error) {
