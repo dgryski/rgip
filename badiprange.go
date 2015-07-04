@@ -40,8 +40,8 @@ type badIPRanges struct {
 
 // lookup returns the found value, if any, followed by a bool indicating whether the value was found
 func (ipr *badIPRanges) lookup(ip32 uint32) (badIPRecord, bool) {
-	ipr.Lock()
-	defer ipr.Unlock()
+	ipr.RLock()
+	defer ipr.RUnlock()
 	return ipr.ranges.lookup(ip32)
 }
 
