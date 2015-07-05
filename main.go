@@ -27,6 +27,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// TODO(dgryski): s/Statistics/Metrics/ to match our other projects
+
 // Statistics tracks metrics for this server
 var Statistics = struct {
 	Requests *expvar.Int
@@ -89,6 +91,8 @@ func (g *geodb) load(dataDir, file string) error {
 	return nil
 }
 
+// TODO(dgryski): remove defer calls from all these
+
 func (g *geodb) GetNetSpeed(ip string) string {
 	g.RLock()
 	defer g.RUnlock()
@@ -134,6 +138,7 @@ func (g *geodb) GetRecord(ip string) *geoip.Record {
 // ufis maps IP addresses to UFIs
 var ufis *ipRanges
 
+// TODO(dgryski): move to iprange.go
 type converr struct {
 	err error
 }
@@ -203,7 +208,7 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 		ipinfo.AreaCode = record.AreaCode
 	}
 
-	// check EvilISP
+	// TODO(dgryski): check EvilISP
 
 	return ipinfo, nil
 }
@@ -405,6 +410,7 @@ func main() {
 		}
 	}
 
+	// TODO(dgryski): add proper log output
 	log.Println("rgip starting")
 
 	gcity = new(geodb)
