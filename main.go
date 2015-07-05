@@ -415,8 +415,7 @@ func main() {
 
 	err := loadDataFiles(*lite, *dataDir, *ufi, *isbinary)
 	if err != nil {
-		log.Fatal("can't load data files: ", err)
-
+		log.Fatal("error loading data files: ", err)
 	}
 
 	var evilipdb *sql.DB
