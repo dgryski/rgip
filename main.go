@@ -1,5 +1,4 @@
-// rgip: restful geoip lookup service
-// Someday: IPv6
+// Command rgip is a restful geoip lookup service
 package main
 
 import (
