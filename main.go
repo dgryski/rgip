@@ -138,20 +138,6 @@ func (g *geodb) GetRecord(ip string) *geoip.Record {
 // ufis maps IP addresses to UFIs
 var ufis *ipRanges
 
-// TODO(dgryski): move to iprange.go
-type converr struct {
-	err error
-}
-
-func (c *converr) check(s string, f func(string) (int, error)) int {
-	i, e := f(s)
-	if e != nil {
-		c.err = e
-		return 0
-	}
-	return i
-}
-
 var errParseError = errors.New("ipinfo: parse error")
 
 func lookupIPInfo(ip string) (IPInfo, error) {

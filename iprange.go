@@ -157,8 +157,8 @@ func loadIPRangesFromCSV(file *os.File) (ipRangeList, error) {
 
 		var convert converr
 		ipFrom = prevIP + 1
-		ipTo = convert.check(r[0], strconv.Atoi)
-		data = convert.check(r[1], strconv.Atoi)
+		ipTo = convert.check(r[0])
+		data = convert.check(r[1])
 		prevIP = ipTo
 
 		if convert.err != nil {
@@ -170,6 +170,19 @@ func loadIPRangesFromCSV(file *os.File) (ipRangeList, error) {
 	}
 
 	return ips, nil
+}
+
+type converr struct {
+	err error
+}
+
+func (c *converr) check(s string) int {
+	i, e := strconv.Atoi(s)
+	if e != nil {
+		c.err = e
+		return 0
+	}
+	return i
 }
 
 func loadIPRanges(fname string, isbinary bool) (ipRangeList, error) {
