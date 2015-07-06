@@ -27,10 +27,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// TODO(dgryski): s/Statistics/Metrics/ to match our other projects
-
-// Statistics tracks metrics for this server
-var Statistics = struct {
+// Metrics tracks metrics for this server
+var Metrics = struct {
 	Requests *expvar.Int
 	Errors   *expvar.Int
 }{
@@ -201,7 +199,7 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 
 func lookupHandler(w http.ResponseWriter, r *http.Request) {
 
-	Statistics.Requests.Add(1)
+	Metrics.Requests.Add(1)
 
 	// split path for IP
 	args := strings.Split(r.URL.Path, "/")
@@ -209,7 +207,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 	args = args[2:]
 
 	if len(args) != 1 {
-		Statistics.Errors.Add(1)
+		Metrics.Errors.Add(1)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -217,7 +215,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 	ip := args[0]
 	ipinfo, err := lookupIPInfo(ip)
 	if err != nil {
-		Statistics.Errors.Add(1)
+		Metrics.Errors.Add(1)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -229,7 +227,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 
 func lookupsHandler(w http.ResponseWriter, r *http.Request) {
 
-	Statistics.Requests.Add(1)
+	Metrics.Requests.Add(1)
 
 	// split path for IP
 	args := strings.Split(r.URL.Path, "/")
@@ -237,7 +235,7 @@ func lookupsHandler(w http.ResponseWriter, r *http.Request) {
 	args = args[2:]
 
 	if len(args) != 1 {
-		Statistics.Errors.Add(1)
+		Metrics.Errors.Add(1)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
