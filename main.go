@@ -89,12 +89,10 @@ func (g *geodb) load(dataDir, file string) error {
 	return nil
 }
 
-// TODO(dgryski): remove defer calls from all these
-
 func (g *geodb) GetNetSpeed(ip string) string {
 	g.RLock()
-	defer g.RUnlock()
 	speed, _ /* netmask */ := g.db.GetName(ip)
+	g.RUnlock()
 	if speed == "" {
 		return "Unknown"
 	}
@@ -104,8 +102,8 @@ func (g *geodb) GetNetSpeed(ip string) string {
 
 func (g *geodb) GetNetSpeedV6(ip string) string {
 	g.RLock()
-	defer g.RUnlock()
 	speed, _ /* netmask */ := g.db.GetNameV6(ip)
+	g.RUnlock()
 	if speed == "" {
 		return "Unknown"
 	}
@@ -115,22 +113,23 @@ func (g *geodb) GetNetSpeedV6(ip string) string {
 
 func (g *geodb) GetName(ip string) string {
 	g.RLock()
-	defer g.RUnlock()
 	name, _ := g.db.GetName(ip)
+	g.RUnlock()
 	return name
 }
 
 func (g *geodb) GetNameV6(ip string) string {
 	g.RLock()
-	defer g.RUnlock()
 	name, _ := g.db.GetNameV6(ip)
+	g.RUnlock()
 	return name
 }
 
 func (g *geodb) GetRecord(ip string) *geoip.Record {
 	g.RLock()
-	defer g.RUnlock()
-	return g.db.Lookup(ip)
+	r := g.db.Lookup(ip)
+	g.RUnlock()
+	return r
 }
 
 // ufis maps IP addresses to UFIs
