@@ -9,16 +9,14 @@ import (
 	"io"
 	"log"
 	"os"
-	"reflect"
 	"sort"
 	"strconv"
 	"sync"
-	"unsafe"
 )
 
 var magicBytes = []byte{'r', 'g', 'i', 'p', 'M', 'a', 'p', 0}
 
-const ipRangeSize int = int(unsafe.Sizeof(ipRange{}))
+const ipRangeSize = 12
 
 type ipRange struct {
 	rangeFrom, rangeTo uint32
@@ -52,16 +50,6 @@ func (ipr *ipRanges) lookup(ip32 uint32) (int32, bool) {
 	ipr.RLock()
 	defer ipr.RUnlock()
 	return ipr.ranges.lookup(ip32)
-}
-
-func reflectByteSlice(rows []ipRange) []byte {
-	header := *(*reflect.SliceHeader)(unsafe.Pointer(&rows))
-
-	header.Len *= ipRangeSize
-	header.Cap *= ipRangeSize
-
-	data := *(*[]byte)(unsafe.Pointer(&header))
-	return data
 }
 
 func readMagicBytes(file io.Reader, name string) error {
@@ -114,25 +102,37 @@ func loadIPRangesFromBinary(file io.Reader) ([]ipRange, error) {
 }
 
 func writeBinary(file *os.File, ranges []ipRange) error {
-	_, err := file.Write(magicBytes)
-	if err != nil {
+
+	f := bufio.NewWriter(file)
+
+	if _, err := f.Write(magicBytes); err != nil {
 		return err
 	}
 
-	lenranges := make([]byte, 4)
-	binary.LittleEndian.PutUint32(lenranges, uint32(len(ranges)))
-	_, err = file.Write(lenranges)
-	if err != nil {
+	var b [ipRangeSize]byte
+
+	binary.LittleEndian.PutUint32(b[0:], uint32(len(ranges)))
+	if _, err := f.Write(b[:4]); err != nil {
 		return err
 	}
 
-	_, err = file.Write(reflectByteSlice(ranges))
-	if err != nil {
+	for _, r := range ranges {
+		binary.LittleEndian.PutUint32(b[0:], r.rangeFrom)
+		binary.LittleEndian.PutUint32(b[4:], r.rangeTo)
+		binary.LittleEndian.PutUint32(b[8:], uint32(r.data))
+		if _, err := f.Write(b[:]); err != nil {
+			return err
+		}
+	}
+
+	if _, err := f.Write(magicBytes); err != nil {
 		return err
 	}
 
-	_, err = file.Write(magicBytes)
-	return err
+	if err := f.Flush(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func loadIPRangesFromCSV(file *os.File) (ipRangeList, error) {
