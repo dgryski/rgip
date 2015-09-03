@@ -427,7 +427,7 @@ func main() {
 
 	// start the reload-on-change handler
 	go func() {
-		sigs := make(chan os.Signal)
+		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGHUP)
 
 		var minute <-chan time.Time
