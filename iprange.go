@@ -38,7 +38,7 @@ func (r ipRangeList) Swap(i, j int)      { (r)[i], (r)[j] = (r)[j], (r)[i] }
 func (r ipRangeList) lookup(ip32 uint32) (int32, bool) {
 	idx := sort.Search(len(r), func(i int) bool { return ip32 <= r[i].rangeTo })
 
-	if idx != -1 && r[idx].rangeFrom <= ip32 && ip32 <= r[idx].rangeTo {
+	if idx < len(r) && r[idx].rangeFrom <= ip32 && ip32 <= r[idx].rangeTo {
 		return r[idx].data, true
 	}
 
