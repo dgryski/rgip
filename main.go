@@ -25,6 +25,7 @@ import (
 	"github.com/dgryski/rgip/geoip"
 	"github.com/facebookgo/grace/gracehttp"
 	_ "github.com/mattn/go-sqlite3"
+	geoip2 "github.com/oschwald/geoip2-golang"
 )
 
 // Metrics tracks metrics for this server
@@ -131,6 +132,8 @@ func (g *geodb) GetRecord(ip string) *geoip.Record {
 	g.RUnlock()
 	return r
 }
+
+var g2city *geoip2.Reader
 
 // ufis maps IP addresses to UFIs
 var ufis *ipRanges
@@ -255,6 +258,81 @@ func lookupsHandler(w http.ResponseWriter, r *http.Request) {
 	encoder.Encode(ipinfos)
 }
 
+var parseError = errors.New("bad ip: parse error")
+
+func lookupIPInfo2(ip string) (*geoip2.City, error) {
+	netip := net.ParseIP(ip)
+	if netip == nil {
+		return nil, parseError
+	}
+
+	return g2city.City(netip)
+}
+
+func lookup2Handler(w http.ResponseWriter, r *http.Request) {
+
+	Metrics.Requests.Add(1)
+
+	// split path for IP
+	args := strings.Split(r.URL.Path, "/")
+	// strip entry for "/lookup/"
+	args = args[2:]
+
+	if len(args) != 1 {
+		Metrics.Errors.Add(1)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	ip := args[0]
+	ipinfo, err := lookupIPInfo2(ip)
+	if err != nil {
+		Metrics.Errors.Add(1)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	encoder := json.NewEncoder(w)
+	encoder.Encode(ipinfo)
+}
+
+type IP2Info struct {
+	*geoip2.City
+	IPStatus string
+}
+
+func lookups2Handler(w http.ResponseWriter, r *http.Request) {
+
+	Metrics.Requests.Add(1)
+
+	// split path for IP
+	args := strings.Split(r.URL.Path, "/")
+	// strip entry for "/lookups2/"
+	args = args[2:]
+
+	if len(args) != 1 {
+		Metrics.Errors.Add(1)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	ipinfos := make(map[string]IP2Info)
+
+	for _, ip := range strings.Split(args[0], ",") {
+		ipinfo, err := lookupIPInfo2(ip)
+		if err != nil {
+			ipinfos[ip] = IP2Info{IPStatus: "ParseError"}
+		} else {
+			ipinfos[ip] = IP2Info{City: ipinfo}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	encoder := json.NewEncoder(w)
+	encoder.Encode(ipinfos)
+}
+
 func loadDataFiles(lite bool, datadir, ufi string, isbinary bool) error {
 
 	var err error
@@ -370,6 +448,7 @@ func saveBinary(fname string, ranges []ipRange) {
 func main() {
 
 	dataDir := flag.String("datadir", "", "Directory containing GeoIP data files")
+	data2Dir := flag.String("data2dir", "", "Directory containing GeoIP2 data files")
 	ufi := flag.String("ufi", "", "File containing iprange-to-UFI mappings")
 	isbinary := flag.Bool("isbinary", false, "load iprange-to-UFI mapping as a binary file instead of parsing it as CSV")
 	convert := flag.Bool("convert", false, "Parse iprange-to-UFI CSV and save it as Memory-map files")
@@ -379,6 +458,14 @@ func main() {
 	port := flag.Int("p", 8080, "port")
 
 	flag.Parse()
+
+	if *data2Dir != "" {
+		var err error
+		g2city, err = geoip2.Open(*data2Dir + "/GeoLite2-City.mmdb")
+		if err != nil {
+			log.Fatalln("err=", err)
+		}
+	}
 
 	if *ufi != "" {
 		ufis = new(ipRanges)
@@ -465,11 +552,13 @@ func main() {
 				}
 			}
 		}
-
 	}()
 
 	http.HandleFunc("/lookup/", lookupHandler)
 	http.HandleFunc("/lookups/", lookupsHandler)
+
+	http.HandleFunc("/lookup2/", lookup2Handler)
+	http.HandleFunc("/lookups2/", lookups2Handler)
 
 	if p := os.Getenv("PORT"); p != "" {
 		*port, err = strconv.Atoi(p)
