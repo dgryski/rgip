@@ -59,7 +59,7 @@ type IPInfo struct {
 	UFI      struct {
 		GuessedUFI int32 `json:"guessed_ufi"`
 	} `json:"ufi"`
-	IPStatus string `json:"ip_status"`
+	IPStatus string `json:"ip_status,omitempty"`
 }
 
 // these are connections to the different maxmind geoip databases
