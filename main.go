@@ -199,6 +199,8 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 	return ipinfo, nil
 }
 
+const contentTypeJSON = `application/json; charset=utf-8`
+
 func lookupHandler(w http.ResponseWriter, r *http.Request) {
 
 	Metrics.Requests.Add(1)
@@ -222,7 +224,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	encoder := json.NewEncoder(w)
 	encoder.Encode(ipinfo)
 }
@@ -253,7 +255,7 @@ func lookupsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	encoder := json.NewEncoder(w)
 	encoder.Encode(ipinfos)
 }
@@ -292,7 +294,7 @@ func lookup2Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	encoder := json.NewEncoder(w)
 	encoder.Encode(ipinfo)
 }
@@ -328,7 +330,7 @@ func lookups2Handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	encoder := json.NewEncoder(w)
 	encoder.Encode(ipinfos)
 }
