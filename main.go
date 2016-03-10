@@ -37,6 +37,8 @@ var Metrics = struct {
 	Errors:   expvar.NewInt("errors"),
 }
 
+var BuildVersion = "(development version)"
+
 // City is a maxmind GeoIP city response
 type City struct {
 	City        string  `json:"city"`
@@ -481,13 +483,14 @@ func main() {
 			if e == nil {
 				saveBinary(*ufi, ranges)
 			}
-
 			return
 		}
 	}
 
+	expvar.NewString("BuildVersion").Set(BuildVersion)
+
 	// TODO(dgryski): add proper log output
-	log.Println("rgip starting")
+	log.Println("rgip starting", BuildVersion)
 
 	gcity = new(geodb)
 	if !*lite {
