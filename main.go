@@ -43,9 +43,9 @@ type City struct {
 	CountryCode string  `json:"country_code"`
 	Latitude    float32 `json:"latitude"`
 	Longitude   float32 `json:"longitude"`
-	Region      string  `json:"region"`
-	RegionName  string  `json:"region_name"`
-	PostalCode  string  `json:"postal_code"`
+	Region      string  `json:"region,omitempty"`
+	RegionName  string  `json:"region_name,omitempty"`
+	PostalCode  string  `json:"postal_code,omitempty"`
 	AreaCode    int     `json:"area_code"`
 	TimeZone    string  `json:"time_zone"`
 }
