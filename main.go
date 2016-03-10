@@ -47,7 +47,7 @@ type City struct {
 	RegionName  string  `json:"region_name,omitempty"`
 	PostalCode  string  `json:"postal_code,omitempty"`
 	AreaCode    int     `json:"area_code"`
-	TimeZone    string  `json:"time_zone"`
+	TimeZone    string  `json:"time_zone,omitempty"`
 }
 
 // IPInfo is the response type for the server
