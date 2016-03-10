@@ -411,6 +411,10 @@ func loadEvilIP(db *sql.DB) (badIPRangeList, error) {
 		ipmax := ip | mask
 
 		expireTime, err := time.Parse("2006-01-02", expires)
+		if err != nil {
+			log.Printf("error parsing time %q for range %08x -> %08x: %v\n", expires, ipmin, ipmax, err)
+			continue
+		}
 		badIP := badIPRecord{
 			status:  status,
 			expires: expireTime,
