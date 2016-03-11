@@ -7,11 +7,12 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"sort"
 	"strconv"
 	"sync"
+
+	"github.com/dgryski/rgip/mlog"
 )
 
 var magicBytes = []byte{'r', 'g', 'i', 'p', 'M', 'a', 'p', 0}
@@ -149,7 +150,7 @@ func loadIPRangesFromCSV(file *os.File) (ipRangeList, error) {
 		}
 
 		if err != nil {
-			log.Println("error reading CSV: ", err)
+			mlog.Println("error reading CSV: ", err)
 			return nil, err
 		}
 
@@ -162,7 +163,7 @@ func loadIPRangesFromCSV(file *os.File) (ipRangeList, error) {
 		prevIP = ipTo
 
 		if convert.err != nil {
-			log.Printf("error parsing %v: %s", r, err)
+			mlog.Printf("error parsing %v: %s", r, err)
 			return nil, convert.err
 		}
 
@@ -188,7 +189,7 @@ func (c *converr) check(s string) int {
 func loadIPRanges(fname string, isbinary bool) (ipRangeList, error) {
 	file, err := os.Open(fname)
 	if err != nil {
-		log.Println("can't open file: ", fname, err)
+		mlog.Println("can't open file: ", fname, err)
 		return nil, err
 	}
 

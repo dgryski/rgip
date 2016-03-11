@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/dgryski/rgip/geoip"
+	"github.com/dgryski/rgip/mlog"
 	"github.com/facebookgo/grace/gracehttp"
 	geoip2 "github.com/oschwald/geoip2-golang"
 	"github.com/peterbourgon/g2g"
@@ -80,7 +81,7 @@ func (g *geodb) load(dataDir, file string) error {
 	opts.NoLocks = true
 	db, err := geoip.Open(fname, &opts)
 	if err != nil {
-		log.Printf("error loading %s/%s: %s", dataDir, file, err)
+		mlog.Printf("error loading %s/%s: %s", dataDir, file, err)
 		return err
 	}
 
@@ -362,7 +363,7 @@ func loadDataFiles(lite bool, datadir, ufi string, isbinary bool) error {
 		// ip -> ufi mapping
 		ranges, e := loadIPRanges(ufi, isbinary)
 		if e != nil {
-			log.Printf("unable to load %s: %s", ufi, e)
+			mlog.Printf("unable to load %s: %s", ufi, e)
 			err = e
 		} else {
 			ufis.Lock()
@@ -406,14 +407,14 @@ func main() {
 		var err error
 		g2city, err = geoip2.Open(*data2Dir + "/GeoLite2-City.mmdb")
 		if err != nil {
-			log.Fatalln("error loading geoip2:", err)
+			mlog.Fatal("error loading geoip2:", err)
 		}
 	}
 
 	if *ufi != "" {
 		ufis = new(ipRanges)
 		if *convert {
-			log.Println("loading iprange-to-UFI CSV")
+			mlog.Println("loading iprange-to-UFI CSV")
 			ranges, e := loadIPRanges(*ufi, *isbinary)
 			if e == nil {
 				saveBinary(*ufi, ranges)
@@ -425,7 +426,7 @@ func main() {
 	expvar.NewString("BuildVersion").Set(BuildVersion)
 
 	// TODO(dgryski): add proper log output
-	log.Println("rgip starting", BuildVersion)
+	mlog.Println("rgip starting", BuildVersion)
 
 	gcity = new(geodb)
 	if !*lite {
@@ -435,7 +436,7 @@ func main() {
 
 	err := loadDataFiles(*lite, *dataDir, *ufi, *isbinary)
 	if err != nil {
-		log.Fatal("error loading data files: ", err)
+		mlog.Fatal("error loading data files: ", err)
 	}
 
 	// start the reload-on-change handler
@@ -444,14 +445,14 @@ func main() {
 		signal.Notify(sigs, syscall.SIGHUP)
 
 		for range sigs {
-			log.Println("Attempting to reload data files")
+			mlog.Println("Attempting to reload data files")
 			// TODO(dgryski): run this in a goroutine and catch panics()?
 			err := loadDataFiles(*lite, *dataDir, *ufi, *isbinary)
 			if err != nil {
 				// don't log err here, we've already done it in loadDataFiles
-				log.Println("failed to load some data files")
+				mlog.Println("failed to load some data files")
 			} else {
-				log.Println("All data files reloaded successfully")
+				mlog.Println("All data files reloaded successfully")
 			}
 		}
 	}()
@@ -476,10 +477,10 @@ func main() {
 	if p := os.Getenv("PORT"); p != "" {
 		*port, err = strconv.Atoi(p)
 		if err != nil {
-			log.Fatal("unable to parse port number:", err)
+			mlog.Fatal("unable to parse port number:", err)
 		}
 	}
-	log.Println("listening on port", *port)
+	mlog.Println("listening on port", *port)
 
 	s := &http.Server{
 		Addr:    ":" + strconv.Itoa(*port),
