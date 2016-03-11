@@ -406,7 +406,7 @@ func main() {
 		var err error
 		g2city, err = geoip2.Open(*data2Dir + "/GeoLite2-City.mmdb")
 		if err != nil {
-			log.Fatalln("err=", err)
+			log.Fatalln("error loading geoip2:", err)
 		}
 	}
 
