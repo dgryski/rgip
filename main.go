@@ -396,7 +396,6 @@ func main() {
 	isbinary := flag.Bool("isbinary", false, "load iprange-to-UFI mapping as a binary file instead of parsing it as CSV")
 	convert := flag.Bool("convert", false, "Parse iprange-to-UFI CSV and save it as Memory-map files")
 	lite := flag.Bool("lite", false, "Load only GeoLiteCity.dat")
-	// This is what RobotIP is going to become
 	port := flag.Int("p", 8080, "port")
 
 	flag.Parse()
