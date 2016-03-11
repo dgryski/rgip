@@ -256,12 +256,12 @@ func lookupsHandler(w http.ResponseWriter, r *http.Request) {
 	encoder.Encode(ipinfos)
 }
 
-var parseError = errors.New("bad ip: parse error")
+var errParseIP = errors.New("bad ip: parse error")
 
 func lookupIPInfo2(ip string) (*geoip2.City, error) {
 	netip := net.ParseIP(ip)
 	if netip == nil {
-		return nil, parseError
+		return nil, errParseIP
 	}
 
 	return g2city.City(netip)
