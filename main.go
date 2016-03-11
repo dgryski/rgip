@@ -18,10 +18,12 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/dgryski/rgip/geoip"
 	"github.com/facebookgo/grace/gracehttp"
 	geoip2 "github.com/oschwald/geoip2-golang"
+	"github.com/peterbourgon/g2g"
 )
 
 // Metrics tracks metrics for this server
@@ -453,6 +455,17 @@ func main() {
 			}
 		}
 	}()
+
+	if host := os.Getenv("GRAPHITEHOST") + ":" + os.Getenv("GRAPHITEPORT"); host != ":" {
+		// register our metrics with graphite
+		graphite := g2g.NewGraphite(host, 60*time.Second, 10*time.Second)
+
+		hostname, _ := os.Hostname()
+		hostname = strings.Replace(hostname, ".", "_", -1)
+
+		graphite.Register(fmt.Sprintf("http.rgip.%s.requests", hostname), Metrics.Requests)
+		graphite.Register(fmt.Sprintf("http.rgip.%s.errors", hostname), Metrics.Errors)
+	}
 
 	http.HandleFunc("/lookup/", lookupHandler)
 	http.HandleFunc("/lookups/", lookupsHandler)
