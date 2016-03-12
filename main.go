@@ -24,6 +24,7 @@ import (
 	"github.com/dgryski/rgip/mlog"
 	"github.com/facebookgo/grace/gracehttp"
 	geoip2 "github.com/oschwald/geoip2-golang"
+	maxminddb "github.com/oschwald/maxminddb-golang"
 	"github.com/peterbourgon/g2g"
 )
 
@@ -134,7 +135,10 @@ func (g *geodb) GetRecord(ip string) *geoip.Record {
 	return r
 }
 
-var g2city *geoip2.Reader
+var (
+	g2city *geoip2.Reader
+	g2ufi  *maxminddb.Reader
+)
 
 // ufis maps IP addresses to UFIs
 var ufis *ipRanges
@@ -179,6 +183,14 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 		if ok {
 			ipinfo.UFI.GuessedUFI = ufi
 		}
+	}
+
+	if g2ufi != nil {
+		ufi, err := mmdbIP2UFI(netip)
+		if err != nil {
+			mlog.Println("mmdb error: ", err)
+		}
+		ipinfo.UFI.GuessedUFI = ufi
 	}
 
 	if record := gcity.GetRecord(ip); record != nil {
@@ -268,6 +280,19 @@ func lookupIPInfo2(ip string) (*geoip2.City, error) {
 	}
 
 	return g2city.City(netip)
+}
+
+func mmdbIP2UFI(netip net.IP) (int32, error) {
+	var onlyUFI struct {
+		UFI int32 `maxminddb:"ufi"`
+	}
+
+	err := g2ufi.Lookup(netip, &onlyUFI)
+	if err != nil {
+		return 0, err
+	}
+
+	return onlyUFI.UFI, nil
 }
 
 func lookup2Handler(w http.ResponseWriter, r *http.Request) {
@@ -396,6 +421,7 @@ func main() {
 	dataDir := flag.String("datadir", "", "Directory containing GeoIP data files")
 	data2Dir := flag.String("data2dir", "", "Directory containing GeoIP2 data files")
 	ufi := flag.String("ufi", "", "File containing iprange-to-UFI mappings")
+	ufi2 := flag.String("ufi2", "", "File containing iprange-to-UFI mappings mmdb")
 	isbinary := flag.Bool("isbinary", false, "load iprange-to-UFI mapping as a binary file instead of parsing it as CSV")
 	convert := flag.Bool("convert", false, "Parse iprange-to-UFI CSV and save it as Memory-map files")
 	lite := flag.Bool("lite", false, "Load only GeoLiteCity.dat")
@@ -408,6 +434,14 @@ func main() {
 		g2city, err = geoip2.Open(*data2Dir + "/GeoLite2-City.mmdb")
 		if err != nil {
 			mlog.Fatal("error loading geoip2:", err)
+		}
+	}
+
+	if *ufi2 != "" {
+		var err error
+		g2ufi, err = maxminddb.Open(*ufi2)
+		if err != nil {
+			mlog.Fatal("error loading ip2ufi:", err)
 		}
 	}
 
