@@ -2,7 +2,6 @@
 
 use strict;
 use warnings;
-use feature qw( say );
 
 use MaxMind::DB::Writer::Tree;
 use Net::Works::Network;
@@ -23,6 +22,7 @@ my $tree = MaxMind::DB::Writer::Tree->new(
 
 
 my $prevIP = 0;
+my $lines = 0;
 while (my $line = <>) {
     my ($ipTo, $ufi) = split /,/, $line;
     my $ipFrom = $prevIP + 1;
@@ -36,6 +36,11 @@ while (my $line = <>) {
         $tree->insert_network( $network, { ufi => $ufi });
     }
     $prevIP = $ipTo;
+
+    $lines++;
+    if (($lines % 10000) == 0) {
+        print scalar localtime, ": processed $lines\n";
+    }
 }
 
 open my $fh, '>:raw', "ip2ufi.mmdb";
