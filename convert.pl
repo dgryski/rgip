@@ -22,7 +22,7 @@ my $tree = MaxMind::DB::Writer::Tree->new(
 );
 
 
-my $prevIP = 0x01000000 - 1;
+my $prevIP = 0;
 while (my $line = <>) {
     my ($ipTo, $ufi) = split /,/, $line;
     my $ipFrom = $prevIP + 1;
