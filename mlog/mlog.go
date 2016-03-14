@@ -22,9 +22,11 @@ func Printf(format string, a ...interface{}) { writeLog(fmt.Sprintf(format, a...
 
 func writeLog(s string) {
 
-	err := lsyslog.Info(s)
-	if err != nil {
-		lstdout.Printf("tell: error writing to syslog: %v", err)
+	if *logToSyslog {
+		err := lsyslog.Info(s)
+		if err != nil {
+			lstdout.Printf("tell: error writing to syslog: %v", err)
+		}
 	}
 
 	if *logToStdout {
@@ -46,6 +48,7 @@ func Fatalf(format string, a ...interface{}) {
 }
 
 var logToStdout = flag.Bool("logtostdout", false, "log to stdout")
+var logToSyslog = flag.Bool("logtosyslog", true, "log to syslog")
 
 var lstdout *stdlog.Logger
 
