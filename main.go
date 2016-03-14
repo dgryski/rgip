@@ -263,6 +263,7 @@ func lookupsHandler(w http.ResponseWriter, r *http.Request) {
 	for _, ip := range strings.Split(args[0], ",") {
 		ipinfo, err := lookupIPInfo(ip)
 		if err != nil {
+			Metrics.Errors.Add(1)
 			mlog.Println("error during lookup:", ip)
 			ipinfos[ip] = IPInfo{IPStatus: "ParseError"}
 		} else {
@@ -352,6 +353,7 @@ func lookups2Handler(w http.ResponseWriter, r *http.Request) {
 	for _, ip := range strings.Split(args[0], ",") {
 		ipinfo, err := lookupIPInfo2(ip)
 		if err != nil {
+			Metrics.Errors.Add(1)
 			ipinfos[ip] = IP2Info{IPStatus: "ParseError"}
 		} else {
 			ipinfos[ip] = IP2Info{City: ipinfo}
