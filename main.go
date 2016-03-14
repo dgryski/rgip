@@ -223,6 +223,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 
 	if len(args) != 1 {
 		Metrics.Errors.Add(1)
+		mlog.Println("error parsing request path:", r.URL)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -231,6 +232,7 @@ func lookupHandler(w http.ResponseWriter, r *http.Request) {
 	ipinfo, err := lookupIPInfo(ip)
 	if err != nil {
 		Metrics.Errors.Add(1)
+		mlog.Println("error during lookup:", ip)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -251,6 +253,7 @@ func lookupsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if len(args) != 1 {
 		Metrics.Errors.Add(1)
+		mlog.Println("error parsing request path:", r.URL)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -260,6 +263,7 @@ func lookupsHandler(w http.ResponseWriter, r *http.Request) {
 	for _, ip := range strings.Split(args[0], ",") {
 		ipinfo, err := lookupIPInfo(ip)
 		if err != nil {
+			mlog.Println("error during lookup:", ip)
 			ipinfos[ip] = IPInfo{IPStatus: "ParseError"}
 		} else {
 			ipinfos[ip] = ipinfo
