@@ -26,6 +26,7 @@ import (
 	geoip2 "github.com/oschwald/geoip2-golang"
 	maxminddb "github.com/oschwald/maxminddb-golang"
 	"github.com/peterbourgon/g2g"
+	"github.com/pierrre/geohash"
 )
 
 // Metrics tracks metrics for this server
@@ -62,6 +63,7 @@ type IPInfo struct {
 		GuessedUFI int32 `json:"guessed_ufi"`
 	} `json:"ufi"`
 	IPStatus string `json:"ip_status,omitempty"`
+	GeoHash  string `json:"geohash,omitempty"`
 }
 
 // these are connections to the different maxmind geoip databases
@@ -204,6 +206,8 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 		ipinfo.City.PostalCode = record.PostalCode
 		ipinfo.AreaCode = record.AreaCode
 	}
+
+	ipinfo.GeoHash = geohash.Encode(float64(ipinfo.Latitude), float64(ipinfo.Longitude), 10)
 
 	// TODO(dgryski): check EvilISP
 
