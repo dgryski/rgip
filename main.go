@@ -23,6 +23,7 @@ import (
 	"github.com/dgryski/rgip/geoip"
 	"github.com/dgryski/rgip/mlog"
 	"github.com/facebookgo/grace/gracehttp"
+	olc "github.com/google/open-location-code/go"
 	geoip2 "github.com/oschwald/geoip2-golang"
 	maxminddb "github.com/oschwald/maxminddb-golang"
 	"github.com/peterbourgon/g2g"
@@ -64,6 +65,7 @@ type IPInfo struct {
 	} `json:"ufi"`
 	IPStatus string `json:"ip_status,omitempty"`
 	GeoHash  string `json:"geohash,omitempty"`
+	OLC      string `json:"olc,omitempty"`
 }
 
 // these are connections to the different maxmind geoip databases
@@ -208,6 +210,7 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 	}
 
 	ipinfo.GeoHash = geohash.Encode(float64(ipinfo.Latitude), float64(ipinfo.Longitude), 10)
+	ipinfo.OLC = olc.Encode(float64(ipinfo.Latitude), float64(ipinfo.Longitude), 10)
 
 	// TODO(dgryski): check EvilISP
 
