@@ -30,11 +30,8 @@ while (my $line = <>) {
     my $fromstr = join ".", unpack "C4", pack "N", $ipFrom;
     my $tostr = join ".", unpack "C4", pack "N", $ipTo;
 
-    my @subnets = Net::Works::Network->range_as_subnets($fromstr, $tostr);
-    for my $subnet (@subnets) {
-        my $network = Net::Works::Network->new_from_string( string => $subnet );
-        $tree->insert_network( $network, { ufi => $ufi });
-    }
+    $tree->insert_range( $fromstr, $tostr, { ufi => $ufi });
+
     $prevIP = $ipTo;
 
     $lines++;
