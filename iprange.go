@@ -46,6 +46,42 @@ func (r ipRangeList) lookup(ip32 uint32) (int32, bool) {
 	return 0, false
 }
 
+type shardedRangeList []ipRangeList
+
+func (r ipRangeList) shard() (shardedRangeList, error) {
+
+	shards := make(shardedRangeList, 256)
+
+	for _, v := range r {
+		if v.rangeFrom&0xff000000 == v.rangeTo&0xff000000 {
+			shards[v.rangeFrom>>24] = append(shards[v.rangeFrom>>24], v)
+		} else {
+
+			f := v.rangeFrom
+			t := f | 0x00ffffff
+
+			for t < v.rangeTo {
+				shards[f>>24] = append(shards[f>>24], ipRange{rangeFrom: f, rangeTo: t, data: v.data})
+				f, t = t+1, (t+1)|0xffffff
+			}
+			shards[f>>24] = append(shards[f>>24], ipRange{rangeFrom: f, rangeTo: v.rangeTo, data: v.data})
+		}
+	}
+
+	for i := range shards {
+		if !sort.IsSorted(shards[i]) {
+			fmt.Println("sorting", i, "(items: ", len(shards[i]), ")")
+			sort.Sort(shards[i])
+		}
+	}
+
+	return shards, nil
+}
+
+func (s shardedRangeList) lookup(ip32 uint32) (int32, bool) {
+	return s[ip32>>24].lookup(ip32)
+}
+
 // lookup returns the found value, if any, followed by a bool indicating whether the value was found
 func (ipr *ipRanges) lookup(ip32 uint32) (int32, bool) {
 	ipr.RLock()
