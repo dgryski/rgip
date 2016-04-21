@@ -4,7 +4,6 @@ package geoip
 
 import (
 	"runtime"
-	"sync"
 	"unsafe"
 )
 
@@ -32,7 +31,6 @@ type Options struct {
 	Caching        CachingStrategy // Caching determines what data will be cached.
 	ReloadOnUpdate bool            // ReloadOnUpdate will watch the data files for updates.
 	UseMMap        bool            // UseMMap enables MMAP for the data files.
-	NoLocks        bool            // NoLocks depends on the libGeoIP for thread safety.
 }
 
 func (o Options) bitmask() int32 {
@@ -73,7 +71,6 @@ type Record struct {
 // A Database is a GeoIP database.
 type Database struct {
 	g *C.GeoIP
-	m sync.Locker
 }
 
 // Open returns an open DB instance of the given .dat file. The result *must* be
@@ -92,14 +89,7 @@ func Open(filename string, opts *Options) (*Database, error) {
 	}
 	C.GeoIP_set_charset(g, C.GEOIP_CHARSET_UTF8)
 
-	var m sync.Locker
-	if opts.NoLocks {
-		m = fakeLock{}
-	} else {
-		m = &sync.Mutex{}
-	}
-
-	db := &Database{g: g, m: m}
+	db := &Database{g: g}
 	runtime.SetFinalizer(db, func(db *Database) {
 		_ = db.Close()
 	})
@@ -109,9 +99,6 @@ func Open(filename string, opts *Options) (*Database, error) {
 // Lookup returns a GeoIP Record for the given IP address. If libGeoIP is >
 // 1.5.0, this is thread-safe.
 func (db *Database) Lookup(ip string) *Record {
-	db.m.Lock()
-	defer db.m.Unlock()
-
 	cs := C.CString(ip)
 	defer C.free(unsafe.Pointer(cs))
 
@@ -136,10 +123,6 @@ func (db *Database) Lookup(ip string) *Record {
 }
 
 func (db *Database) GetName(ip string) (name string, netmask int) {
-
-	db.m.Lock()
-	defer db.m.Unlock()
-
 	cip := C.CString(ip)
 	defer C.free(unsafe.Pointer(cip))
 	var gl C.GeoIPLookup
@@ -155,10 +138,6 @@ func (db *Database) GetName(ip string) (name string, netmask int) {
 }
 
 func (db *Database) GetNameV6(ip string) (name string, netmask int) {
-
-	db.m.Lock()
-	defer db.m.Unlock()
-
 	cip := C.CString(ip)
 	defer C.free(unsafe.Pointer(cip))
 	var gl C.GeoIPLookup
@@ -216,8 +195,3 @@ func GetRegionName(countryCode, regionCode string) string {
 	// static string
 	return C.GoString(region)
 }
-
-type fakeLock struct{}
-
-func (fakeLock) Lock()   {}
-func (fakeLock) Unlock() {}
