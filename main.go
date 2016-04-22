@@ -57,7 +57,7 @@ type City struct {
 // IPInfo is the response type for the server
 type IPInfo struct {
 	IP       string `json:"ip"`
-	City     `json:"city"`
+	*City    `json:"city,omitempty"`
 	ISP      string `json:"isp"`
 	NetSpeed string `json:"netspeed"`
 	UFI      struct {
@@ -196,7 +196,8 @@ func lookupIPInfo(ip string) (IPInfo, error) {
 		ipinfo.UFI.GuessedUFI = ufi
 	}
 
-	if record := gcity.GetRecord(ip); record != nil {
+	if record := gcity.GetRecord(ip); record != nil && record.CountryCode != "" {
+		ipinfo.City = new(City)
 		ipinfo.City.City = record.City
 		ipinfo.CountryCode = strings.ToLower(record.CountryCode)
 		ipinfo.Latitude = float32(record.Latitude)
