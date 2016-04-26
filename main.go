@@ -82,7 +82,11 @@ type geodb struct {
 
 func (g *geodb) load(dataDir, file string) error {
 	fname := path.Join(dataDir, file)
-	opts := *geoip.DefaultOptions // copy
+	var opts = geoip.Options{
+		Caching:        geoip.CacheAll,
+		ReloadOnUpdate: false,
+		UseMMap:        false,
+	}
 	db, err := geoip.Open(fname, &opts)
 	if err != nil {
 		mlog.Printf("error loading %s/%s: %s", dataDir, file, err)
