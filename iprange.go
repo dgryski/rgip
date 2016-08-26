@@ -138,7 +138,7 @@ func loadIPRangesFromBinary(file io.Reader) ([]ipRange, error) {
 	return ranges, nil
 }
 
-func writeBinary(file *os.File, ranges []ipRange) error {
+func writeBinary(file io.Writer, ranges []ipRange) error {
 
 	f := bufio.NewWriter(file)
 
@@ -172,7 +172,7 @@ func writeBinary(file *os.File, ranges []ipRange) error {
 	return nil
 }
 
-func loadIPRangesFromCSV(file *os.File) (ipRangeList, error) {
+func loadIPRangesFromCSV(file io.Reader) (ipRangeList, error) {
 	svr := csv.NewReader(file)
 
 	var ips ipRangeList
